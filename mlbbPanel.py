@@ -3,6 +3,7 @@ import sqlite3
 import time
 import random
 import string
+import requests
 
 # ===== WEBKEEP ALIVE =====
 app_web = Flask(name)
