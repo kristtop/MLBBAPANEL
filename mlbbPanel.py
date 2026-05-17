@@ -3,20 +3,10 @@ import sqlite3
 import time
 import random
 import string
-import requests
+import os  # ✅ TINAGDAG NA IMPORT
 
-# ===== WEBKEEP ALIVE =====
-app_web = Flask(name)
-OWNER_ID = 8073609514
-
-@app_web.route("/")
-def home():
-    return "Bot is online!"
-
-def keep_alive():
-    port = int(os.environ.get("PORT", 10000))
-    Thread(target=lambda: app_web.run(host="0.0.0.0", port=port)).start()
-
+# ===== ONE FLASK INSTANCE FOR RENDER =====
+# ✅ INAYOS: Ginawang __name__ para hindi na mag-NameError
 app = Flask(__name__)
 DB_FILE = "slider_vip.db"
 
@@ -28,7 +18,6 @@ def get_db_connection():
 def init_db():
     conn = get_db_connection()
     cursor = conn.cursor()
-
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS keys_table (
             license_key TEXT PRIMARY KEY,
@@ -36,7 +25,6 @@ def init_db():
             expiry_timestamp INTEGER
         )
     ''')
-
     conn.commit()
     conn.close()
 
@@ -50,52 +38,17 @@ HTML_TEMPLATE = """
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Slider Mods - VIP Panel</title>
-
 <style>
-body{
-    background:#121212;
-    color:#e0e0e0;
-    font-family:Arial;
-    padding:20px;
-}
+body{background:#121212;color:#e0e0e0;font-family:Arial;padding:20px;}
 .container{max-width:1000px;margin:auto;}
-.card{
-    background:#1e1e1e;
-    padding:20px;
-    border-radius:10px;
-    margin-bottom:20px;
-    border:1px solid #333;
-}
+.card{background:#1e1e1e;padding:20px;border-radius:10px;margin-bottom:20px;border:1px solid #333;}
 h1,h2{color:#ff3b30;}
-
-input,select,button{
-    padding:12px;
-    border-radius:5px;
-    border:1px solid #444;
-    font-size:15px;
-    margin-bottom:10px;
-}
+input,select,button{padding:12px;border-radius:5px;border:1px solid #444;font-size:15px;margin-bottom:10px;}
 input,select{background:#2a2a2a;color:white;}
-button{
-    background:#ff3b30;
-    color:white;
-    border:none;
-    cursor:pointer;
-}
-table{
-    width:100%;
-    border-collapse:collapse;
-    margin-top:15px;
-}
-th,td{
-    border:1px solid #333;
-    padding:12px;
-    text-align:left;
-}
-th{
-    background:#2a2a2a;
-    color:#ff3b30;
-}
+button{background:#ff3b30;color:white;border:none;cursor:pointer;}
+table{width:100%;border-collapse:collapse;margin-top:15px;}
+th,td{border:1px solid #333;padding:12px;text-align:left;}
+th{background:#2a2a2a;color:#ff3b30;}
 tr:nth-child(even){background:#161616;}
 .badge-active{color:#34c759;font-weight:bold;}
 .badge-expired{color:#ff3b30;font-weight:bold;}
@@ -103,45 +56,30 @@ tr:nth-child(even){background:#161616;}
 .btn-delete{background:#8e8e93;color:white;padding:5px 10px;}
 </style>
 </head>
-
 <body>
-
 <div class="container">
-
 <h1>🤖 Slider Mods VIP Dashboard</h1>
-
 <div class="card">
 <h2>🔑 Generate Key</h2>
-
 <form action="/admin/generate" method="POST">
-
 <select name="time_type">
 <option value="minutes">Minutes</option>
 <option value="hours">Hours</option>
 <option value="days" selected>Days</option>
 </select>
-
 <input type="number" name="duration" placeholder="Enter Time" required>
-
 <button type="submit">Create Key</button>
-
 </form>
-
 <br>
-
 <small>
 Examples:<br>
 3 + Minutes = 3 Minutes Key<br>
 2 + Hours = 2 Hours Key<br>
 7 + Days = 7 Days Key
 </small>
-
 </div>
-
 <div class="card">
-
 <h2>🗄️ Database Keys</h2>
-
 <table>
 <thead>
 <tr>
@@ -151,20 +89,13 @@ Examples:<br>
 <th>Actions</th>
 </tr>
 </thead>
-
 <tbody>
-
 {% for row in keys %}
 <tr>
-
-<td style="font-family:monospace;color:#ffe957;">
-{{ row[0] }}
-</td>
-
+<td style="font-family:monospace;color:#ffe957;">{{ row[0] }}</td>
 <td style="font-family:monospace;font-size:12px;color:#aaa;">
 {% if row[1] %}{{ row[1] }}{% else %}Fresh (No Lock){% endif %}
 </td>
-
 <td>
 {% if current_time >= row[2] %}
 <span class="badge-expired">❌ Expired</span>
@@ -173,27 +104,16 @@ Examples:<br>
 <small>{{ datetime_format(row[2]) }}</small>
 {% endif %}
 </td>
-
 <td>
-<a href="/admin/reset/{{ row[0] }}">
-<button class="btn-reset">Reset HWID</button>
-</a>
-
-<a href="/admin/delete/{{ row[0] }}">
-<button class="btn-delete">Delete</button>
-</a>
+<a href="/admin/reset/{{ row[0] }}"><button class="btn-reset">Reset HWID</button></a>
+<a href="/admin/delete/{{ row[0] }}"><button class="btn-delete">Delete</button></a>
 </td>
-
 </tr>
 {% endfor %}
-
 </tbody>
 </table>
-
 </div>
-
 </div>
-
 </body>
 </html>
 """
@@ -203,16 +123,13 @@ Examples:<br>
 # ==========================================
 @app.route('/', methods=['GET'])
 def admin_dashboard():
-
     conn = get_db_connection()
     cursor = conn.cursor()
-
     cursor.execute("""
         SELECT license_key, hwid, expiry_timestamp
         FROM keys_table
         ORDER BY expiry_timestamp DESC
     """)
-
     keys = cursor.fetchall()
     conn.close()
 
@@ -231,7 +148,6 @@ def admin_dashboard():
 # ==========================================
 @app.route('/admin/generate', methods=['POST'])
 def admin_generate():
-
     duration = int(request.form.get('duration', 1))
     time_type = request.form.get('time_type', 'days')
 
@@ -239,25 +155,23 @@ def admin_generate():
 
     if time_type == "minutes":
         expiry_seconds = duration * 60
-        prefix = f"Slider_{duration}m"
+        prefix = f"Slider_{duration}m_"
     elif time_type == "hours":
         expiry_seconds = duration * 3600
-        prefix = f"Slider_{duration}h"
+        prefix = f"Slider_{duration}h_"
     else:
         expiry_seconds = duration * 86400
-        prefix = f"Slider_{duration}d"
+        prefix = f"Slider_{duration}d_"
 
     new_key = prefix + random_str
     expiry_time = int(time.time()) + expiry_seconds
 
     conn = get_db_connection()
     cursor = conn.cursor()
-
     cursor.execute("""
         INSERT INTO keys_table (license_key, hwid, expiry_timestamp)
         VALUES (?, '', ?)
     """, (new_key, expiry_time))
-
     conn.commit()
     conn.close()
 
@@ -273,16 +187,13 @@ def admin_generate():
 # ==========================================
 @app.route('/admin/reset/<string:key>', methods=['GET'])
 def admin_reset_hwid(key):
-
     conn = get_db_connection()
     cursor = conn.cursor()
-
     cursor.execute("""
         UPDATE keys_table
         SET hwid = ''
         WHERE license_key = ?
     """, (key,))
-
     conn.commit()
     conn.close()
 
@@ -298,15 +209,12 @@ def admin_reset_hwid(key):
 # ==========================================
 @app.route('/admin/delete/<string:key>', methods=['GET'])
 def admin_delete_key(key):
-
     conn = get_db_connection()
     cursor = conn.cursor()
-
     cursor.execute("""
         DELETE FROM keys_table
         WHERE license_key = ?
     """, (key,))
-
     conn.commit()
     conn.close()
 
@@ -322,7 +230,6 @@ def admin_delete_key(key):
 # ==========================================
 @app.route('/verify', methods=['POST'])
 def verify_key():
-
     key = request.form.get('key')
     hwid = request.form.get('device_id')
 
@@ -331,17 +238,14 @@ def verify_key():
 
     conn = get_db_connection()
     cursor = conn.cursor()
-
     cursor.execute("""
         SELECT hwid, expiry_timestamp
         FROM keys_table
         WHERE license_key = ?
     """, (key,))
-
     row = cursor.fetchone()
 
     if row:
-
         db_hwid, expiry = row
         current_time = int(time.time())
 
@@ -375,19 +279,18 @@ def verify_key():
 # ==========================================
 # 🚀 START SERVER
 # ==========================================
-if name == "main":
-    keep_alive()
-    main()
-
+# ✅ INAYOS: Standard na __main__ verification 
+if __name__ == "__main__":
     init_db()
 
     print("\n======================================")
     print("🚀 SLIDER MODS SERVER ONLINE")
-    print("📱 API: https://slidermods.duckdns.org/verify")
-    print("🌐 PANEL: https://slidermods.duckdns.org/")
     print("======================================\n")
 
+    # Kukunin ng Render ang dynamic port, magre-fall back sa 10000 kung local testing
+    port = int(os.environ.get("PORT", 10000))
     app.run(
         host='0.0.0.0',
-        port=8274
+        port=port
     )
+    
