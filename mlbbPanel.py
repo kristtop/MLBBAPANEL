@@ -1,7 +1,6 @@
-
 from flask import Flask, request, jsonify, render_template_string, redirect, session
 import os
-import sqlite3
+import psycopg2
 import time
 import random
 import string
@@ -9,14 +8,15 @@ import string
 app = Flask(__name__)
 app.secret_key = "slider_super_secret_key"
 ADMIN_PASSWORD = "qwerty12213"
-DB_FILE = "slider_vip.db"
+
 
 # =========================
 # DATABASE
 # =========================
+DATABASE_URL = os.environ.get("DATABASE_URL")
+
 def get_db_connection():
-    conn = sqlite3.connect(DB_FILE)
-    conn.execute('PRAGMA journal_mode=WAL;')
+    conn = psycopg2.connect(DATABASE_URL)
     return conn
 
 def init_db():
@@ -464,7 +464,7 @@ def generate_permanent():
 
     try:
         cursor.execute(
-            "INSERT INTO keys_table (license_key, hwid, expiry_timestamp) VALUES (?, '', ?)",
+            "INSERT INTO keys_table (license_key, hwid, expiry_timestamp) VALUES (%s, '', %s)",
             (new_key, expiry_time)
         )
 
@@ -530,7 +530,7 @@ def admin_generate():
     cursor = conn.cursor()
 
     cursor.execute(
-        "INSERT INTO keys_table (license_key, hwid, expiry_timestamp) VALUES (?, '', ?)",
+        "INSERT INTO keys_table (license_key, hwid, expiry_timestamp) VALUES (%s, '', %s)",
         (new_key, expiry_time)
     )
 
@@ -568,7 +568,7 @@ def admin_reset_hwid(key):
 
     # check if key exists
     cursor.execute(
-        "SELECT license_key FROM keys_table WHERE license_key = ?",
+        "SELECT license_key FROM keys_table WHERE license_key = %s",
         (key,)
     )
     row = cursor.fetchone()
@@ -579,7 +579,7 @@ def admin_reset_hwid(key):
 
     # RESET HWID (unlock device bind)
     cursor.execute(
-        "UPDATE keys_table SET hwid = '' WHERE license_key = ?",
+        "UPDATE keys_table SET hwid = '' WHERE license_key = %s",
         (key,)
     )
 
@@ -605,7 +605,7 @@ def admin_delete_key(key):
     cursor = conn.cursor()
 
     cursor.execute(
-        "DELETE FROM keys_table WHERE license_key = ?",
+        "DELETE FROM keys_table WHERE license_key = %s",
         (key,)
     )
 
@@ -643,7 +643,7 @@ def admin_edit_time(key):
         )
 
         cursor.execute(
-            "SELECT expiry_timestamp FROM keys_table WHERE license_key = ?",
+            "SELECT expiry_timestamp FROM keys_table WHERE license_key = %s",
             (key,)
         )
 
@@ -661,7 +661,7 @@ def admin_edit_time(key):
                 new_expiry = current_expiry + added_seconds
 
             cursor.execute(
-                "UPDATE keys_table SET expiry_timestamp = ? WHERE license_key = ?",
+                "UPDATE keys_table SET expiry_timestamp = %s WHERE license_key = %s",
                 (new_expiry, key)
             )
 
@@ -763,12 +763,7 @@ def admin_edit_time(key):
     </body>
     </html>
     '''
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("DELETE FROM keys_table WHERE license_key = ?", (key,))
-    conn.commit()
-    conn.close()
-    return f'<script>alert("Deleted Key\\n\\n{key}");window.location.href="/";</script>'
+    
 
 # =========================
 # VERIFY API
@@ -785,7 +780,7 @@ def verify_key():
     cursor = conn.cursor()
 
     cursor.execute(
-        "SELECT hwid, expiry_timestamp FROM keys_table WHERE license_key = ?",
+        "SELECT hwid, expiry_timestamp FROM keys_table WHERE license_key = %s",
         (key,)
     )
     row = cursor.fetchone()
@@ -800,7 +795,7 @@ def verify_key():
 
         if not db_hwid:
             cursor.execute(
-                "UPDATE keys_table SET hwid = ? WHERE license_key = ?",
+                "UPDATE keys_table SET hwid = %s WHERE license_key = %s",
                 (hwid, key)
             )
             conn.commit()
