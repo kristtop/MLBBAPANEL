@@ -454,7 +454,7 @@ def generate_permanent():
     if not user_number:
         return '<script>alert("Missing Number");window.location.href="/";</script>'
 
-    new_key = f"Slider_PermanentUser{user_number}"
+    new_key = f"Slider_PermanentUser{user_number}_{int(time.time())}"
 
     # sobrang tagal expiry (year 2100)
     expiry_time = 4102444800
