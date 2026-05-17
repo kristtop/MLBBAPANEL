@@ -6,7 +6,7 @@ import string
 import requests
 
 # ===== WEBKEEP ALIVE =====
-app_web = Flask(name)
+app = Flask(__name__)
 OWNER_ID = 8073609514
 
 @app_web.route("/")
@@ -17,7 +17,7 @@ def keep_alive():
     port = int(os.environ.get("PORT", 10000))
     Thread(target=lambda: app_web.run(host="0.0.0.0", port=port)).start()
 
-app_web = Flask(name)
+app = Flask(__name__)
 DB_FILE = "slider_vip.db"
 
 def get_db_connection():
