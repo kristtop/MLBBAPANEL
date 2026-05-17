@@ -1,10 +1,13 @@
 from flask import Flask, request, jsonify, render_template_string, redirect, session
+
 import os
 import psycopg2
 import time
 import random
 import string
+import uuid
 
+from psycopg2 import IntegrityError
 
 app = Flask(__name__)
 app.secret_key = "slider_super_secret_key"
@@ -457,13 +460,13 @@ def generate_permanent():
     if not user_number:
         return '<script>alert("Missing Number");window.location.href="/";</script>'
 
-    conn = get_db_connection()
-    cursor = conn.cursor()
-
     expiry_time = 4102444800  # year 2100
 
-    # retry system para siguradong unique
+    # retry system
     for _ in range(10):
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
 
         new_key = f"Slider_PermanentUser{user_number}_{uuid.uuid4().hex[:12]}"
 
@@ -472,6 +475,7 @@ def generate_permanent():
                 "INSERT INTO keys_table (license_key, hwid, expiry_timestamp) VALUES (%s, %s, %s)",
                 (new_key, "", expiry_time)
             )
+
             conn.commit()
             conn.close()
 
@@ -484,20 +488,18 @@ def generate_permanent():
 
         except IntegrityError:
             conn.rollback()
+            conn.close()
             continue
 
         except Exception as e:
             conn.rollback()
             conn.close()
-
             return f'''
             <script>
             alert("Error: {str(e)}");
             window.location.href="/";
             </script>
             '''
-
-    conn.close()
 
     return '''
     <script>
