@@ -102,6 +102,34 @@ tr:nth-child(even){background:#161616;}
 <div class="card">
 <h2>🔑 Generate Key</h2>
 
+<div class="card">
+
+<h2>♾️ Generate Permanent User</h2>
+
+<form action="/admin/generate_permanent" method="POST">
+
+<input type="number"
+       name="user_number"
+       placeholder="Enter User Number"
+       required>
+
+<button type="submit">
+Create Permanent User
+</button>
+
+</form>
+
+<br>
+
+<small>
+Examples:<br>
+1 = Slider_PermanentUser1<br>
+2 = Slider_PermanentUser2<br>
+3 = Slider_PermanentUser3
+</small>
+
+</div>
+
 <form action="/admin/generate" method="POST">
 
 <select name="time_type">
@@ -209,6 +237,44 @@ def admin_dashboard():
 # =========================
 # GENERATE KEY
 # =========================
+
+@app.route('/admin/generate_permanent', methods=['POST'])
+def generate_permanent():
+
+    user_number = request.form.get('user_number')
+
+    if not user_number:
+        return '<script>alert("Missing Number");window.location.href="/";</script>'
+
+    new_key = f"Slider_PermanentUser{user_number}"
+
+    # sobrang tagal expiry (year 2100)
+    expiry_time = 4102444800
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    try:
+        cursor.execute(
+            "INSERT INTO keys_table (license_key, hwid, expiry_timestamp) VALUES (?, '', ?)",
+            (new_key, expiry_time)
+        )
+
+        conn.commit()
+
+    except Exception:
+        conn.close()
+        return f'<script>alert("Key Already Exists");window.location.href="/";</script>'
+
+    conn.close()
+
+    return f'''
+    <script>
+    alert("Permanent User Created:\\n\\n{new_key}");
+    window.location.href="/";
+    </script>
+    '''
+
 @app.route('/admin/generate', methods=['POST'])
 def admin_generate():
     duration = int(request.form.get('duration', 1))
