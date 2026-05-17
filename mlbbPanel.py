@@ -104,7 +104,7 @@ tr:nth-child(even){background:#161616;}
 
 <div class="card">
 
-<h2>♾️ Generate Permanent User</h2>
+<h2>Generate Permanent User</h2>
 
 <form action="/admin/generate_permanent" method="POST">
 
@@ -129,23 +129,44 @@ Generate Key
 
 <form action="/admin/generate" method="POST">
 
-<input type="number"
-       name="days"
-       placeholder="Days"
-       value=""
-       required>
+<label>Days</label>
+<select name="days">
 
-<input type="number"
-       name="hours"
-       placeholder="Hours"
-       value=""
-       required>
+<option value="0">0 Day</option>
 
-<input type="number"
-       name="minutes"
-       placeholder="Minutes"
-       value=""
-       required>
+{% for i in range(1,31) %}
+<option value="{{i}}">
+{{i}} Day
+</option>
+{% endfor %}
+
+</select>
+
+<label>Hours</label>
+<select name="hours">
+
+<option value="0">0 Hour</option>
+
+{% for i in range(1,25) %}
+<option value="{{i}}">
+{{i}} Hour
+</option>
+{% endfor %}
+
+</select>
+
+<label>Minutes</label>
+<select name="minutes">
+
+<option value="0">0 Minute</option>
+
+{% for i in range(1,60) %}
+<option value="{{i}}">
+{{i}} Minute
+</option>
+{% endfor %}
+
+</select>
 
 <button type="submit">
 Generate Key
@@ -195,14 +216,33 @@ Generate Key
 {% endif %}
 </td>
 
-<td>
+<td style="display:flex;gap:5px;flex-wrap:wrap;">
+
+<button
+type="button"
+onclick="copyKey('{{ row[0] }}')"
+style="background:#34c759;color:white;padding:5px 10px;border:none;border-radius:5px;cursor:pointer;">
+Copy Key
+</button>
+
 <a href="/admin/reset/{{ row[0] }}">
-<button class="btn-reset">Reset HWID</button>
+<button class="btn-reset">
+Reset HWID
+</button>
+</a>
+
+<a href="/admin/edit/{{ row[0] }}">
+<button style="background:#0a84ff;color:white;padding:5px 10px;">
+Edit Time
+</button>
 </a>
 
 <a href="/admin/delete/{{ row[0] }}">
-<button class="btn-delete">Delete</button>
+<button class="btn-delete">
+Delete
+</button>
 </a>
+
 </td>
 
 </tr>
@@ -214,6 +254,36 @@ Generate Key
 </div>
 
 </div>
+
+<script>
+
+async function copyKey(key){
+
+    try{
+
+        await navigator.clipboard.writeText(key);
+
+        alert("Copied Key:\\n\\n" + key);
+
+    }catch(err){
+
+        const tempInput = document.createElement("input");
+
+        tempInput.value = key;
+
+        document.body.appendChild(tempInput);
+
+        tempInput.select();
+
+        document.execCommand("copy");
+
+        document.body.removeChild(tempInput);
+
+        alert("Copied Key:\\n\\n" + key);
+    }
+}
+
+</script>
 
 </body>
 </html>
@@ -362,10 +432,147 @@ def admin_reset_hwid(key):
     return f'<script>alert("HWID Reset Success\\n\\n{key}");window.location.href="/";</script>'
 
 # =========================
-# DELETE KEY
+# EDIT TIME
 # =========================
-@app.route('/admin/delete/<string:key>', methods=['GET'])
-def admin_delete_key(key):
+@app.route('/admin/edit/<string:key>', methods=['GET', 'POST'])
+def admin_edit_time(key):
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    if request.method == 'POST':
+
+        days = int(request.form.get('days', 0))
+        hours = int(request.form.get('hours', 0))
+        minutes = int(request.form.get('minutes', 0))
+
+        added_seconds = (
+            (days * 86400) +
+            (hours * 3600) +
+            (minutes * 60)
+        )
+
+        cursor.execute(
+            "SELECT expiry_timestamp FROM keys_table WHERE license_key = ?",
+            (key,)
+        )
+
+        row = cursor.fetchone()
+
+        if row:
+
+            current_expiry = row[0]
+
+            now = int(time.time())
+
+            if current_expiry < now:
+                new_expiry = now + added_seconds
+            else:
+                new_expiry = current_expiry + added_seconds
+
+            cursor.execute(
+                "UPDATE keys_table SET expiry_timestamp = ? WHERE license_key = ?",
+                (new_expiry, key)
+            )
+
+            conn.commit()
+
+        conn.close()
+
+        return f'''
+        <script>
+        alert("Time Updated Successfully");
+        window.location.href="/";
+        </script>
+        '''
+
+    conn.close()
+
+    return f'''
+    <!DOCTYPE html>
+    <html>
+
+    <head>
+
+    <title>Edit Time</title>
+
+    <style>
+
+    body{{
+        background:#121212;
+        color:white;
+        font-family:Arial;
+        padding:30px;
+    }}
+
+    .box{{
+        max-width:400px;
+        margin:auto;
+        background:#1e1e1e;
+        padding:20px;
+        border-radius:10px;
+        border:1px solid #333;
+    }}
+
+    input,button{{
+        width:100%;
+        padding:12px;
+        margin-top:10px;
+        border:none;
+        border-radius:5px;
+    }}
+
+    input{{
+        background:#2a2a2a;
+        color:white;
+    }}
+
+    button{{
+        background:#0a84ff;
+        color:white;
+        cursor:pointer;
+    }}
+
+    </style>
+
+    </head>
+
+    <body>
+
+    <div class="box">
+
+    <h2>Edit Time</h2>
+
+    <p>{key}</p>
+
+    <form method="POST">
+
+    <input type="number"
+           name="days"
+           placeholder="Days"
+           value="0">
+
+    <input type="number"
+           name="hours"
+           placeholder="Hours"
+           value="0">
+
+    <input type="number"
+           name="minutes"
+           placeholder="Minutes"
+           value="0">
+
+    <button type="submit">
+    Add Time
+    </button>
+
+    </form>
+
+    </div>
+
+    </body>
+    </html>
+    '''
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("DELETE FROM keys_table WHERE license_key = ?", (key,))
