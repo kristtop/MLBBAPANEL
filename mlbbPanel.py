@@ -4,6 +4,8 @@ import psycopg2
 import time
 import random
 import string
+import IntegrityError
+import uuid
 
 app = Flask(__name__)
 app.secret_key = "slider_super_secret_key"
@@ -439,8 +441,10 @@ def admin_dashboard():
         datetime_format=datetime_format
     )
 
+
+
 # =========================
-# GENERATE KEY
+# GENERATE PERMANENT KEY
 # =========================
 
 @app.route('/admin/generate_permanent', methods=['POST'])
@@ -454,31 +458,51 @@ def generate_permanent():
     if not user_number:
         return '<script>alert("Missing Number");window.location.href="/";</script>'
 
-    new_key = f"Slider_PermanentUser{user_number}_{int(time.time())}"
-
-    # sobrang tagal expiry (year 2100)
-    expiry_time = 4102444800
-
     conn = get_db_connection()
     cursor = conn.cursor()
 
-    try:
-        cursor.execute(
-            "INSERT INTO keys_table (license_key, hwid, expiry_timestamp) VALUES (%s, '', %s)",
-            (new_key, expiry_time)
-        )
+    expiry_time = 4102444800  # year 2100
 
-        conn.commit()
+    # retry system para siguradong unique
+    for _ in range(10):
 
-    except Exception:
-        conn.close()
-        return f'<script>alert("Key Already Exists");window.location.href="/";</script>'
+        new_key = f"Slider_PermanentUser{user_number}_{uuid.uuid4().hex[:12]}"
+
+        try:
+            cursor.execute(
+                "INSERT INTO keys_table (license_key, hwid, expiry_timestamp) VALUES (%s, %s, %s)",
+                (new_key, "", expiry_time)
+            )
+            conn.commit()
+            conn.close()
+
+            return f'''
+            <script>
+            alert("Permanent User Created:\\n\\n{new_key}");
+            window.location.href="/";
+            </script>
+            '''
+
+        except IntegrityError:
+            conn.rollback()
+            continue
+
+        except Exception as e:
+            conn.rollback()
+            conn.close()
+
+            return f'''
+            <script>
+            alert("Error: {str(e)}");
+            window.location.href="/";
+            </script>
+            '''
 
     conn.close()
 
-    return f'''
+    return '''
     <script>
-    alert("Permanent User Created:\\n\\n{new_key}");
+    alert("Failed to generate unique key. Try again.");
     window.location.href="/";
     </script>
     '''
