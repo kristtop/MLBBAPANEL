@@ -557,6 +557,41 @@ def admin_generate():
 # =========================
 # RESET HWID
 # =========================
+@app.route('/admin/reset/<string:key>', methods=['GET'])
+def admin_reset_hwid(key):
+
+    if not session.get("admin_logged_in"):
+        return redirect('/login')
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    # check if key exists
+    cursor.execute(
+        "SELECT license_key FROM keys_table WHERE license_key = ?",
+        (key,)
+    )
+    row = cursor.fetchone()
+
+    if not row:
+        conn.close()
+        return '<script>alert("Key Not Found");window.location.href="/";</script>'
+
+    # RESET HWID (unlock device bind)
+    cursor.execute(
+        "UPDATE keys_table SET hwid = '' WHERE license_key = ?",
+        (key,)
+    )
+
+    conn.commit()
+    conn.close()
+
+    return f'''
+    <script>
+    alert("HWID Reset Success\\n\\n{key}");
+    window.location.href="/";
+    </script>
+    '''
 # =========================
 # DELETE KEY
 # =========================
