@@ -5,7 +5,8 @@ import random
 import string
 
 # ===== WEBKEEP ALIVE =====
-OWNER_ID = 7201369115
+app_web = Flask(name)
+OWNER_ID = 8073609514
 
 @app_web.route("/")
 def home():
@@ -14,7 +15,7 @@ def home():
 def keep_alive():
     port = int(os.environ.get("PORT", 10000))
     Thread(target=lambda: app_web.run(host="0.0.0.0", port=port)).start()
-    
+
 app = Flask(__name__)
 DB_FILE = "slider_vip.db"
 
