@@ -114,7 +114,7 @@ tr:nth-child(even){background:#161616;}
        required>
 
 <button type="submit">
-Create Permanent User
+Generate Key
 </button>
 
 </form>
@@ -122,35 +122,41 @@ Create Permanent User
 <br>
 
 <small>
-Examples:<br>
-1 = Slider_PermanentUser1<br>
-2 = Slider_PermanentUser2<br>
-3 = Slider_PermanentUser3
+
 </small>
 
 </div>
 
 <form action="/admin/generate" method="POST">
 
-<select name="time_type">
-<option value="minutes">Minutes</option>
-<option value="hours">Hours</option>
-<option value="days" selected>Days</option>
-</select>
+<input type="number"
+       name="days"
+       placeholder="Days"
+       value=""
+       required>
 
-<input type="number" name="duration" placeholder="Enter Time" required>
+<input type="number"
+       name="hours"
+       placeholder="Hours"
+       value=""
+       required>
 
-<button type="submit">Create Key</button>
+<input type="number"
+       name="minutes"
+       placeholder="Minutes"
+       value=""
+       required>
+
+<button type="submit">
+Generate Key
+</button>
 
 </form>
 
 <br>
 
 <small>
-Examples:<br>
-3 + Minutes = 3 Minutes Key<br>
-2 + Hours = 2 Hours Key<br>
-7 + Days = 7 Days Key
+
 </small>
 
 </div>
@@ -277,34 +283,71 @@ def generate_permanent():
 
 @app.route('/admin/generate', methods=['POST'])
 def admin_generate():
-    duration = int(request.form.get('duration', 1))
-    time_type = request.form.get('time_type', 'days')
 
-    random_str = ''.join(random.choices(string.ascii_letters + string.digits, k=14))
+    days = int(request.form.get('days', 0))
+    hours = int(request.form.get('hours', 0))
+    minutes = int(request.form.get('minutes', 0))
 
-    if time_type == "minutes":
-        expiry_seconds = duration * 60
-        prefix = f"Slider_{duration}m"
-    elif time_type == "hours":
-        expiry_seconds = duration * 3600
-        prefix = f"Slider_{duration}h"
+    if days == 0 and hours == 0 and minutes == 0:
+        return '''
+        <script>
+        alert("Enter Time First");
+        window.location.href="/";
+        </script>
+        '''
+
+    random_str = ''.join(
+        random.choices(
+            string.ascii_letters + string.digits,
+            k=14
+        )
+    )
+
+    expiry_seconds = (
+        (days * 86400) +
+        (hours * 3600) +
+        (minutes * 60)
+    )
+
+    # SHORT PREFIX FORMAT
+    if days > 0:
+        prefix = f"Slider_{days}d"
+    elif hours > 0:
+        prefix = f"Slider_{hours}h"
     else:
-        expiry_seconds = duration * 86400
-        prefix = f"Slider_{duration}d"
+        prefix = f"Slider_{minutes}m"
 
     new_key = prefix + random_str
+
     expiry_time = int(time.time()) + expiry_seconds
 
     conn = get_db_connection()
     cursor = conn.cursor()
+
     cursor.execute(
         "INSERT INTO keys_table (license_key, hwid, expiry_timestamp) VALUES (?, '', ?)",
         (new_key, expiry_time)
     )
+
     conn.commit()
     conn.close()
 
-    return f'<script>alert("Generated Key:\\n\\n{new_key}");window.location.href="/";</script>'
+    full_time = f"{days}D {hours}H {minutes}M"
+
+    return f'''
+    <script>
+
+    alert(
+        "Generated Key:\\n\\n"
+        + "{new_key}"
+        + "\\n\\nExpiry:\\n"
+        + "{full_time}"
+    );
+
+    window.location.href="/";
+
+    </script>
+    '''
 
 # =========================
 # RESET HWID
