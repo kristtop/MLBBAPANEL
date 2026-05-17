@@ -557,18 +557,32 @@ def admin_generate():
 # =========================
 # RESET HWID
 # =========================
-@app.route('/admin/reset/<string:key>', methods=['GET'])
-def admin_reset_hwid(key):
+# =========================
+# DELETE KEY
+# =========================
+@app.route('/admin/delete/<string:key>', methods=['GET'])
+def admin_delete_key(key):
 
     if not session.get("admin_logged_in"):
         return redirect('/login')
+
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("UPDATE keys_table SET hwid = '' WHERE license_key = ?", (key,))
+
+    cursor.execute(
+        "DELETE FROM keys_table WHERE license_key = ?",
+        (key,)
+    )
+
     conn.commit()
     conn.close()
-    return f'<script>alert("HWID Reset Success\\n\\n{key}");window.location.href="/";</script>'
 
+    return f'''
+    <script>
+    alert("Deleted Key\\n\\n{key}");
+    window.location.href="/";
+    </script>
+    '''
 # =========================
 # EDIT TIME
 # =========================
