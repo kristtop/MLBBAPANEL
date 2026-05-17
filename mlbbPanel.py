@@ -245,8 +245,10 @@ if __name__ == "__main__":  # FIXED: Nilagyan ng tamang underscores
 
     print("\n======================================")
     print("🚀 SLIDER MODS SERVER ONLINE")
+    print("📱 API: https://slidermods.duckdns.org/verify")
+    print("🌐 PANEL: https://slidermods.duckdns.org/")
     print("======================================\n")
-
+    
     # Sa Render, dapat basahin ang port galing sa environment variable kung ito ang pangunahing app
     port_env = int(os.environ.get("PORT", 8274))
     app.run(host='0.0.0.0', port=port_env)
