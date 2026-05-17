@@ -4,8 +4,7 @@ import psycopg2
 import time
 import random
 import string
-import IntegrityError
-import uuid
+
 
 app = Flask(__name__)
 app.secret_key = "slider_super_secret_key"
