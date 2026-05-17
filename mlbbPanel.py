@@ -1,4 +1,5 @@
-from flask import Flask, request, jsonify, render_template_string
+
+from flask import Flask, request, jsonify, render_template_string, redirect, session
 import os
 import sqlite3
 import time
@@ -6,6 +7,8 @@ import random
 import string
 
 app = Flask(__name__)
+app.secret_key = "slider_super_secret_key"
+ADMIN_PASSWORD = "qwerty12213"
 DB_FILE = "slider_vip.db"
 
 # =========================
@@ -97,7 +100,17 @@ tr:nth-child(even){background:#161616;}
 
 <div class="container">
 
+<div style="display:flex;justify-content:space-between;align-items:center;">
+
 <h1>🤖 Slider Mods VIP Dashboard</h1>
+
+<a href="/logout">
+<button style="background:#ff3b30;color:white;">
+Logout
+</button>
+</a>
+
+</div>
 
 <div class="card">
 <h2>🔑 Generate Key</h2>
@@ -292,8 +305,124 @@ async function copyKey(key){
 # =========================
 # DASHBOARD
 # =========================
+
+# =========================
+# ADMIN LOGIN
+# =========================
+
+LOGIN_TEMPLATE = """
+<!DOCTYPE html>
+<html>
+<head>
+<title>Admin Login</title>
+
+<style>
+
+body{
+    background:#121212;
+    color:white;
+    font-family:Arial;
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    height:100vh;
+}
+
+.box{
+    background:#1e1e1e;
+    padding:30px;
+    border-radius:10px;
+    width:350px;
+    border:1px solid #333;
+}
+
+input,button{
+    width:100%;
+    padding:12px;
+    margin-top:10px;
+    border:none;
+    border-radius:5px;
+}
+
+input{
+    background:#2a2a2a;
+    color:white;
+}
+
+button{
+    background:#ff3b30;
+    color:white;
+    cursor:pointer;
+}
+
+h2{
+    text-align:center;
+    color:#ff3b30;
+}
+
+</style>
+
+</head>
+
+<body>
+
+<div class="box">
+
+<h2>🔐 Admin Login</h2>
+
+<form method="POST">
+
+<input type="password"
+       name="password"
+       placeholder="Enter Password"
+       required>
+
+<button type="submit">
+Login
+</button>
+
+</form>
+
+</div>
+
+</body>
+</html>
+"""
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+
+    if request.method == 'POST':
+
+        password = request.form.get('password')
+
+        if password == ADMIN_PASSWORD:
+
+            session['admin_logged_in'] = True
+
+            return redirect('/')
+
+        return '''
+        <script>
+        alert("Wrong Password");
+        window.location.href="/login";
+        </script>
+        '''
+
+    return render_template_string(LOGIN_TEMPLATE)
+
+@app.route('/logout')
+def logout():
+
+    session.clear()
+
+    return redirect('/login')
+
 @app.route('/', methods=['GET'])
 def admin_dashboard():
+
+    if not session.get("admin_logged_in"):
+        return redirect('/login')
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT license_key, hwid, expiry_timestamp FROM keys_table ORDER BY expiry_timestamp DESC")
@@ -316,6 +445,9 @@ def admin_dashboard():
 
 @app.route('/admin/generate_permanent', methods=['POST'])
 def generate_permanent():
+
+    if not session.get("admin_logged_in"):
+        return redirect('/login')
 
     user_number = request.form.get('user_number')
 
@@ -353,6 +485,9 @@ def generate_permanent():
 
 @app.route('/admin/generate', methods=['POST'])
 def admin_generate():
+
+    if not session.get("admin_logged_in"):
+        return redirect('/login')
 
     days = int(request.form.get('days', 0))
     hours = int(request.form.get('hours', 0))
@@ -424,6 +559,9 @@ def admin_generate():
 # =========================
 @app.route('/admin/reset/<string:key>', methods=['GET'])
 def admin_reset_hwid(key):
+
+    if not session.get("admin_logged_in"):
+        return redirect('/login')
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("UPDATE keys_table SET hwid = '' WHERE license_key = ?", (key,))
@@ -436,6 +574,9 @@ def admin_reset_hwid(key):
 # =========================
 @app.route('/admin/edit/<string:key>', methods=['GET', 'POST'])
 def admin_edit_time(key):
+
+    if not session.get("admin_logged_in"):
+        return redirect('/login')
 
     conn = get_db_connection()
     cursor = conn.cursor()
