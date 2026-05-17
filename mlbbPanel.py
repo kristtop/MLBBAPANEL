@@ -30,9 +30,160 @@ def init_db():
     conn.close()
 
 # =========================
-# HTML PANEL
+# HTML PANEL (FULL YOUR UI)
 # =========================
-HTML_TEMPLATE = """ (YOUR SAME HTML HERE) """
+HTML_TEMPLATE = """
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Slider Mods - VIP Panel</title>
+
+<style>
+body{
+    background:#121212;
+    color:#e0e0e0;
+    font-family:Arial;
+    padding:20px;
+}
+.container{max-width:1000px;margin:auto;}
+.card{
+    background:#1e1e1e;
+    padding:20px;
+    border-radius:10px;
+    margin-bottom:20px;
+    border:1px solid #333;
+}
+h1,h2{color:#ff3b30;}
+
+input,select,button{
+    padding:12px;
+    border-radius:5px;
+    border:1px solid #444;
+    font-size:15px;
+    margin-bottom:10px;
+}
+input,select{background:#2a2a2a;color:white;}
+button{
+    background:#ff3b30;
+    color:white;
+    border:none;
+    cursor:pointer;
+}
+table{
+    width:100%;
+    border-collapse:collapse;
+    margin-top:15px;
+}
+th,td{
+    border:1px solid #333;
+    padding:12px;
+    text-align:left;
+}
+th{
+    background:#2a2a2a;
+    color:#ff3b30;
+}
+tr:nth-child(even){background:#161616;}
+.badge-active{color:#34c759;font-weight:bold;}
+.badge-expired{color:#ff3b30;font-weight:bold;}
+.btn-reset{background:#ffcc00;color:black;padding:5px 10px;}
+.btn-delete{background:#8e8e93;color:white;padding:5px 10px;}
+</style>
+</head>
+
+<body>
+
+<div class="container">
+
+<h1>🤖 Slider Mods VIP Dashboard</h1>
+
+<div class="card">
+<h2>🔑 Generate Key</h2>
+
+<form action="/admin/generate" method="POST">
+
+<select name="time_type">
+<option value="minutes">Minutes</option>
+<option value="hours">Hours</option>
+<option value="days" selected>Days</option>
+</select>
+
+<input type="number" name="duration" placeholder="Enter Time" required>
+
+<button type="submit">Create Key</button>
+
+</form>
+
+<br>
+
+<small>
+Examples:<br>
+3 + Minutes = 3 Minutes Key<br>
+2 + Hours = 2 Hours Key<br>
+7 + Days = 7 Days Key
+</small>
+
+</div>
+
+<div class="card">
+
+<h2>🗄️ Database Keys</h2>
+
+<table>
+<thead>
+<tr>
+<th>License Key</th>
+<th>HWID</th>
+<th>Status</th>
+<th>Actions</th>
+</tr>
+</thead>
+
+<tbody>
+
+{% for row in keys %}
+<tr>
+
+<td style="font-family:monospace;color:#ffe957;">{{ row[0] }}</td>
+
+<td style="font-family:monospace;font-size:12px;color:#aaa;">
+{% if row[1] %}{{ row[1] }}{% else %}Fresh (No Lock){% endif %}
+</td>
+
+<td>
+{% if current_time >= row[2] %}
+<span class="badge-expired">❌ Expired</span>
+{% else %}
+<span class="badge-active">✅ Active</span><br>
+<small>{{ datetime_format(row[2]) }}</small>
+{% endif %}
+</td>
+
+<td>
+<a href="/admin/reset/{{ row[0] }}">
+<button class="btn-reset">Reset HWID</button>
+</a>
+
+<a href="/admin/delete/{{ row[0] }}">
+<button class="btn-delete">Delete</button>
+</a>
+</td>
+
+</tr>
+{% endfor %}
+
+</tbody>
+</table>
+
+</div>
+
+</div>
+
+</body>
+</html>
+"""
 
 # =========================
 # DASHBOARD
