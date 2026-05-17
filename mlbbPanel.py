@@ -1,4 +1,6 @@
-From flask import Flask, request, jsonify, render_template_string
+from flask import Flask, request, jsonify, render_template_string
+import os  # Idinagdag para sa os.environ
+from threading import Thread  # Idinagdag para sa Thread
 import sqlite3
 import time
 import random
@@ -6,7 +8,7 @@ import string
 import requests
 
 # ===== WEBKEEP ALIVE =====
-app = Flask(__name__)
+app_web = Flask(__name__)  # FIXED: pinalitan ng __name__
 OWNER_ID = 8073609514
 
 @app_web.route("/")
@@ -15,9 +17,10 @@ def home():
 
 def keep_alive():
     port = int(os.environ.get("PORT", 10000))
-    Thread(target=lambda: app_web.run(host="0.0.0.0", port=port)).start()
+    Thread(target=lambda: app_web.run(host="0.0.0.0", port=port, use_reloader=False)).start()
 
-app = Flask(__name__)
+# Kung may isa ka pang Flask app instance para sa checker/verify, siguraduhing iba ang pangalan
+app = Flask(__name__)  
 DB_FILE = "slider_vip.db"
 
 def get_db_connection():
@@ -50,52 +53,17 @@ HTML_TEMPLATE = """
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Slider Mods - VIP Panel</title>
-
 <style>
-body{
-    background:#121212;
-    color:#e0e0e0;
-    font-family:Arial;
-    padding:20px;
-}
+body{background:#121212;color:#e0e0e0;font-family:Arial;padding:20px;}
 .container{max-width:1000px;margin:auto;}
-.card{
-    background:#1e1e1e;
-    padding:20px;
-    border-radius:10px;
-    margin-bottom:20px;
-    border:1px solid #333;
-}
+.card{background:#1e1e1e;padding:20px;border-radius:10px;margin-bottom:20px;border:1px solid #333;}
 h1,h2{color:#ff3b30;}
-
-input,select,button{
-    padding:12px;
-    border-radius:5px;
-    border:1px solid #444;
-    font-size:15px;
-    margin-bottom:10px;
-}
+input,select,button{padding:12px;border-radius:5px;border:1px solid #444;font-size:15px;margin-bottom:10px;}
 input,select{background:#2a2a2a;color:white;}
-button{
-    background:#ff3b30;
-    color:white;
-    border:none;
-    cursor:pointer;
-}
-table{
-    width:100%;
-    border-collapse:collapse;
-    margin-top:15px;
-}
-th,td{
-    border:1px solid #333;
-    padding:12px;
-    text-align:left;
-}
-th{
-    background:#2a2a2a;
-    color:#ff3b30;
-}
+button{background:#ff3b30;color:white;border:none;cursor:pointer;}
+table{width:100%;border-collapse:collapse;margin-top:15px;}
+th,td{border:1px solid #333;padding:12px;text-align:left;}
+th{background:#2a2a2a;color:#ff3b30;}
 tr:nth-child(even){background:#161616;}
 .badge-active{color:#34c759;font-weight:bold;}
 .badge-expired{color:#ff3b30;font-weight:bold;}
@@ -103,97 +71,53 @@ tr:nth-child(even){background:#161616;}
 .btn-delete{background:#8e8e93;color:white;padding:5px 10px;}
 </style>
 </head>
-
 <body>
-
 <div class="container">
-
 <h1>🤖 Slider Mods VIP Dashboard</h1>
-
 <div class="card">
 <h2>🔑 Generate Key</h2>
-
 <form action="/admin/generate" method="POST">
-
 <select name="time_type">
 <option value="minutes">Minutes</option>
 <option value="hours">Hours</option>
 <option value="days" selected>Days</option>
 </select>
-
 <input type="number" name="duration" placeholder="Enter Time" required>
-
 <button type="submit">Create Key</button>
-
 </form>
-
 <br>
-
-<small>
-Examples:<br>
-3 + Minutes = 3 Minutes Key<br>
-2 + Hours = 2 Hours Key<br>
-7 + Days = 7 Days Key
-</small>
-
+<small>Examples:<br>3 + Minutes = 3 Minutes Key<br>2 + Hours = 2 Hours Key<br>7 + Days = 7 Days Key</small>
 </div>
-
 <div class="card">
-
 <h2>🗄️ Database Keys</h2>
-
 <table>
 <thead>
-<tr>
-<th>License Key</th>
-<th>HWID</th>
-<th>Status</th>
-<th>Actions</th>
-</tr>
+<tr><th>License Key</th><th>HWID</th><th>Status</th><th>Actions</th></tr>
 </thead>
-
 <tbody>
-
 {% for row in keys %}
 <tr>
-
-<td style="font-family:monospace;color:#ffe957;">
-{{ row[0] }}
-</td>
-
+<td style="font-family:monospace;color:#ffe957;">{{ row[0] }}</td>
 <td style="font-family:monospace;font-size:12px;color:#aaa;">
 {% if row[1] %}{{ row[1] }}{% else %}Fresh (No Lock){% endif %}
 </td>
-
 <td>
 {% if current_time >= row[2] %}
 <span class="badge-expired">❌ Expired</span>
 {% else %}
-<span class="badge-active">✅ Active</span><br>
-<small>{{ datetime_format(row[2]) }}</small>
+<span class="badge-active">✅ Active</span><br><small>{{ datetime_format(row[2]) }}</small>
 {% endif %}
 </td>
-
 <td>
-<a href="/admin/reset/{{ row[0] }}">
-<button class="btn-reset">Reset HWID</button>
-</a>
-
-<a href="/admin/delete/{{ row[0] }}">
-<button class="btn-delete">Delete</button>
-</a>
+<a href="/admin/reset/{{ row[0] }}"><button class="btn-reset">Reset HWID</button></a>
+<a href="/admin/delete/{{ row[0] }}"><button class="btn-delete">Delete</button></a>
 </td>
-
 </tr>
 {% endfor %}
-
 </tbody>
 </table>
-
 </div>
-
 </div>
-
 </body>
 </html>
 """
@@ -203,16 +127,9 @@ Examples:<br>
 # ==========================================
 @app.route('/', methods=['GET'])
 def admin_dashboard():
-
     conn = get_db_connection()
     cursor = conn.cursor()
-
-    cursor.execute("""
-        SELECT license_key, hwid, expiry_timestamp
-        FROM keys_table
-        ORDER BY expiry_timestamp DESC
-    """)
-
+    cursor.execute("SELECT license_key, hwid, expiry_timestamp FROM keys_table ORDER BY expiry_timestamp DESC")
     keys = cursor.fetchall()
     conn.close()
 
@@ -231,10 +148,8 @@ def admin_dashboard():
 # ==========================================
 @app.route('/admin/generate', methods=['POST'])
 def admin_generate():
-
     duration = int(request.form.get('duration', 1))
     time_type = request.form.get('time_type', 'days')
-
     random_str = ''.join(random.choices(string.ascii_letters + string.digits, k=14))
 
     if time_type == "minutes":
@@ -252,77 +167,41 @@ def admin_generate():
 
     conn = get_db_connection()
     cursor = conn.cursor()
-
-    cursor.execute("""
-        INSERT INTO keys_table (license_key, hwid, expiry_timestamp)
-        VALUES (?, '', ?)
-    """, (new_key, expiry_time))
-
+    cursor.execute("INSERT INTO keys_table (license_key, hwid, expiry_timestamp) VALUES (?, '', ?)", (new_key, expiry_time))
     conn.commit()
     conn.close()
 
-    return f'''
-    <script>
-        alert("Generated Key:\\n\\n{new_key}");
-        window.location.href="/";
-    </script>
-    '''
+    return f'<script>alert("Generated Key:\\n\\n{new_key}");window.location.href="/";</script>'
 
 # ==========================================
 # 🔄 RESET HWID
 # ==========================================
 @app.route('/admin/reset/<string:key>', methods=['GET'])
 def admin_reset_hwid(key):
-
     conn = get_db_connection()
     cursor = conn.cursor()
-
-    cursor.execute("""
-        UPDATE keys_table
-        SET hwid = ''
-        WHERE license_key = ?
-    """, (key,))
-
+    cursor.execute("UPDATE keys_table SET hwid = '' WHERE license_key = ?", (key,))
     conn.commit()
     conn.close()
-
-    return f'''
-    <script>
-        alert("HWID Reset Success\\n\\n{key}");
-        window.location.href="/";
-    </script>
-    '''
+    return f'<script>alert("HWID Reset Success\\n\\n{key}");window.location.href="/";</script>'
 
 # ==========================================
 # ❌ DELETE KEY
 # ==========================================
 @app.route('/admin/delete/<string:key>', methods=['GET'])
 def admin_delete_key(key):
-
     conn = get_db_connection()
     cursor = conn.cursor()
-
-    cursor.execute("""
-        DELETE FROM keys_table
-        WHERE license_key = ?
-    """, (key,))
-
+    cursor.execute("DELETE FROM keys_table WHERE license_key = ?", (key,))
     conn.commit()
     conn.close()
-
-    return f'''
-    <script>
-        alert("Deleted Key\\n\\n{key}");
-        window.location.href="/";
-    </script>
-    '''
+    return f'<script>alert("Deleted Key\\n\\n{key}");window.location.href="/";</script>'
 
 # ==========================================
 # 📱 VERIFY API
 # ==========================================
 @app.route('/verify', methods=['POST'])
 def verify_key():
-
     key = request.form.get('key')
     hwid = request.form.get('device_id')
 
@@ -331,17 +210,10 @@ def verify_key():
 
     conn = get_db_connection()
     cursor = conn.cursor()
-
-    cursor.execute("""
-        SELECT hwid, expiry_timestamp
-        FROM keys_table
-        WHERE license_key = ?
-    """, (key,))
-
+    cursor.execute("SELECT hwid, expiry_timestamp FROM keys_table WHERE license_key = ?", (key,))
     row = cursor.fetchone()
 
     if row:
-
         db_hwid, expiry = row
         current_time = int(time.time())
 
@@ -350,11 +222,7 @@ def verify_key():
             return jsonify({"status":3,"msg":"Key Expired"})
 
         if not db_hwid or db_hwid == "":
-            cursor.execute("""
-                UPDATE keys_table
-                SET hwid = ?
-                WHERE license_key = ?
-            """, (hwid, key))
+            cursor.execute("UPDATE keys_table SET hwid = ? WHERE license_key = ?", (hwid, key))
             conn.commit()
             db_hwid = hwid
 
@@ -363,11 +231,7 @@ def verify_key():
             return jsonify({"status":2,"msg":"Key used on another device"})
 
         conn.close()
-        return jsonify({
-            "status":0,
-            "msg":"Login Success",
-            "expiry":expiry
-        })
+        return jsonify({"status":0,"msg":"Login Success","expiry":expiry})
 
     conn.close()
     return jsonify({"status":4,"msg":"Invalid Key"})
@@ -375,22 +239,14 @@ def verify_key():
 # ==========================================
 # 🚀 START SERVER
 # ==========================================
-if name == "main":
+if __name__ == "__main__":  # FIXED: Nilagyan ng tamang underscores
+    init_db()  # Inuna natin ang pag-init ng db bago mag-start ang app
     keep_alive()
-    main()
-
-    init_db()
 
     print("\n======================================")
     print("🚀 SLIDER MODS SERVER ONLINE")
-    print("📱 API: https://slidermods.duckdns.org/verify")
-    print("🌐 PANEL: https://slidermods.duckdns.org/")
     print("======================================\n")
 
-    app.run(
-        host='0.0.0.0',
-        port=8274
-    )
-
-
-anong mali dito?
+    # Sa Render, dapat basahin ang port galing sa environment variable kung ito ang pangunahing app
+    port_env = int(os.environ.get("PORT", 8274))
+    app.run(host='0.0.0.0', port=port_env)
