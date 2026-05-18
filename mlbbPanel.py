@@ -121,17 +121,36 @@ Logout
 
 <div class="card">
 
-<h2>Generate Permanent User</h2>
+<h2>Custom Key Generator</h2>
 
-<form action="/admin/generate_permanent" method="POST">
+<form action="/admin/custom_generate" method="POST">
 
-<input type="number"
-       name="user_number"
-       placeholder="Enter User Number"
+<input type="text"
+       name="custom_key"
+       placeholder="Enter Custom Key"
        required>
 
+<br>
+
+<input type="number"
+       name="days"
+       placeholder="Days"
+       value="0">
+
+<input type="number"
+       name="hours"
+       placeholder="Hours"
+       value="0">
+
+<input type="number"
+       name="minutes"
+       placeholder="Minutes"
+       value="0">
+
+<br>
+
 <button type="submit">
-Generate Key
+Generate Custom Key
 </button>
 
 </form>
@@ -446,67 +465,81 @@ def admin_dashboard():
 
 
 # =========================
-# GENERATE PERMANENT KEY
+# CUSTOM KEY GENERATOR
 # =========================
 
-@app.route('/admin/generate_permanent', methods=['POST'])
-def generate_permanent():
+@app.route('/admin/custom_generate', methods=['POST'])
+def custom_generate():
 
     if not session.get("admin_logged_in"):
         return redirect('/login')
 
-    user_number = request.form.get('user_number')
+    custom_key = request.form.get('custom_key')
 
-    if not user_number:
-        return '<script>alert("Missing Number");window.location.href="/";</script>'
+    days = int(request.form.get('days', 0))
+    hours = int(request.form.get('hours', 0))
+    minutes = int(request.form.get('minutes', 0))
 
-    expiry_time = 4102444800  # year 2100
+    if not custom_key:
+        return '''
+        <script>
+        alert("Enter Custom Key");
+        window.location.href="/";
+        </script>
+        '''
 
-    # retry system
-    for _ in range(10):
+    # permanent key support
+    if days == 0 and hours == 0 and minutes == 0:
 
-        conn = get_db_connection()
-        cursor = conn.cursor()
+        expiry_time = 4102444800
 
-        new_key = f"Slider_PermanentUser{user_number}_{uuid.uuid4().hex[:12]}"
+    else:
 
-        try:
-            cursor.execute(
-                "INSERT INTO keys_table (license_key, hwid, expiry_timestamp) VALUES (%s, %s, %s)",
-                (new_key, "", expiry_time)
-            )
+        expiry_seconds = (
+            (days * 86400) +
+            (hours * 3600) +
+            (minutes * 60)
+        )
 
-            conn.commit()
-            conn.close()
+        expiry_time = int(time.time()) + expiry_seconds
 
-            return f'''
-            <script>
-            alert("Permanent User Created:\\n\\n{new_key}");
-            window.location.href="/";
-            </script>
-            '''
+    conn = get_db_connection()
+    cursor = conn.cursor()
 
-        except IntegrityError:
-            conn.rollback()
-            conn.close()
-            continue
+    try:
 
-        except Exception as e:
-            conn.rollback()
-            conn.close()
-            return f'''
-            <script>
-            alert("Error: {str(e)}");
-            window.location.href="/";
-            </script>
-            '''
+        cursor.execute(
+            "INSERT INTO keys_table (license_key, hwid, expiry_timestamp) VALUES (%s, %s, %s)",
+            (custom_key, "", expiry_time)
+        )
 
-    return '''
-    <script>
-    alert("Failed to generate unique key. Try again.");
-    window.location.href="/";
-    </script>
-    '''
+        conn.commit()
+        conn.close()
+
+        return f'''
+        <script>
+
+        alert(
+            "Custom Key Generated\\n\\n"
+            + "{custom_key}"
+        );
+
+        window.location.href="/";
+
+        </script>
+        '''
+
+    except IntegrityError:
+
+        conn.rollback()
+        conn.close()
+
+        return '''
+        <script>
+        alert("Key Already Exists");
+        window.location.href="/";
+        </script>
+        '''
 
 @app.route('/admin/generate', methods=['POST'])
 def admin_generate():
