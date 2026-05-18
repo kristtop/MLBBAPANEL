@@ -529,17 +529,17 @@ def custom_generate():
         </script>
         '''
 
-except Exception as e:
+    except Exception as e:
 
-    conn.rollback()
-    conn.close()
+        conn.rollback()
+        conn.close()
 
-    return f'''
-    <script>
-    alert("Error:\\n\\n{str(e)}");
-    window.location.href="/";
-    </script>
-    '''
+        return f'''
+        <script>
+        alert("Error:\\n\\n{str(e)}");
+        window.location.href="/";
+        </script>
+        '''
 
 @app.route('/admin/generate', methods=['POST'])
 def admin_generate():
