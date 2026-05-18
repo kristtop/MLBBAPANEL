@@ -490,11 +490,8 @@ def custom_generate():
 
     # permanent key support
     if days == 0 and hours == 0 and minutes == 0:
-
         expiry_time = 4102444800
-
     else:
-
         expiry_seconds = (
             (days * 86400) +
             (hours * 3600) +
@@ -508,6 +505,25 @@ def custom_generate():
 
     try:
 
+        # CHECK IF KEY EXISTS
+        cursor.execute(
+            "SELECT license_key FROM keys_table WHERE license_key = %s",
+            (custom_key,)
+        )
+
+        existing = cursor.fetchone()
+
+        if existing:
+            conn.close()
+
+            return '''
+            <script>
+            alert("Key Already Exists");
+            window.location.href="/";
+            </script>
+            '''
+
+        # INSERT NEW KEY
         cursor.execute(
             "INSERT INTO keys_table (license_key, hwid, expiry_timestamp) VALUES (%s, %s, %s)",
             (custom_key, "", expiry_time)
@@ -518,14 +534,8 @@ def custom_generate():
 
         return f'''
         <script>
-
-        alert(
-            "Custom Key Generated\\n\\n"
-            + "{custom_key}"
-        );
-
+        alert("Custom Key Generated\\n\\n{custom_key}");
         window.location.href="/";
-
         </script>
         '''
 
