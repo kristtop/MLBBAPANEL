@@ -529,7 +529,7 @@ def custom_generate():
         </script>
         '''
 
-    except Exception as e:
+except Exception as e:
 
     conn.rollback()
     conn.close()
