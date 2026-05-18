@@ -7,7 +7,7 @@ import random
 import string
 import uuid
 
-from psycopg2 import IntegrityError
+from psycopg2.errors import UniqueViolation
 
 app = Flask(__name__)
 app.secret_key = "slider_super_secret_key"
@@ -529,17 +529,17 @@ def custom_generate():
         </script>
         '''
 
-    except IntegrityError:
+    except Exception as e:
 
-        conn.rollback()
-        conn.close()
+    conn.rollback()
+    conn.close()
 
-        return '''
-        <script>
-        alert("Key Already Exists");
-        window.location.href="/";
-        </script>
-        '''
+    return f'''
+    <script>
+    alert("Error:\\n\\n{str(e)}");
+    window.location.href="/";
+    </script>
+    '''
 
 @app.route('/admin/generate', methods=['POST'])
 def admin_generate():
