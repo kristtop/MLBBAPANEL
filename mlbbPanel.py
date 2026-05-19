@@ -935,30 +935,50 @@ def admin_edit_time(key):
 # =========================
 @app.route('/verify', methods=['POST'])
 def verify_key():
-    key = request.form.get('key')
-    hwid = request.form.get('device_id')
+    try:
+        key = request.form.get('key')
+        hwid = request.form.get('device_id')
 
-    if not key or not hwid:
-        return jsonify({"status": 1, "msg": "Missing Parameters"})
+        if not key or not hwid:
+            return jsonify({"status": 1, "msg": "Missing Parameters"})
 
-    conn = get_db_connection()
-    cursor = conn.cursor()
+        conn = get_db_connection()
+        cursor = conn.cursor()
 
-    cursor.execute(
-        "SELECT hwid, expiry_timestamp, no_lock FROM keys_table WHERE license_key = %s",
-        (key,)
-    )
+        cursor.execute(
+            "SELECT hwid, expiry_timestamp, no_lock FROM keys_table WHERE license_key = %s",
+            (key,)
+        )
 
-    row = cursor.fetchone()
+        row = cursor.fetchone()
 
-    if row:
+        if not row:
+            conn.close()
+            return jsonify({"status": 4, "msg": "Invalid Key"})
+
         db_hwid, expiry, no_lock = row
         now = int(time.time())
 
+        # SAFE CHECK (prevent None crash)
+        if not expiry:
+            conn.close()
+            return jsonify({"status": 5, "msg": "No Expiry Set"})
+
+        # expired
         if now >= expiry:
             conn.close()
             return jsonify({"status": 3, "msg": "Key Expired"})
 
+        # NO LOCK FEATURE
+        if no_lock == 1:
+            conn.close()
+            return jsonify({
+                "status": 0,
+                "msg": "Login Success (No Lock)",
+                "expiry": expiry
+            })
+
+        # first bind
         if not db_hwid:
             cursor.execute(
                 "UPDATE keys_table SET hwid = %s WHERE license_key = %s",
@@ -967,19 +987,24 @@ def verify_key():
             conn.commit()
             db_hwid = hwid
 
+        # device mismatch
         if db_hwid != hwid:
             conn.close()
             return jsonify({"status": 2, "msg": "Key used on another device"})
 
         conn.close()
+
         return jsonify({
             "status": 0,
             "msg": "Login Success",
             "expiry": expiry
         })
 
-    conn.close()
-    return jsonify({"status": 4, "msg": "Invalid Key"})
+    except Exception as e:
+        return jsonify({
+            "status": 500,
+            "msg": str(e)
+        })
 
 # =========================
 # START SERVER (RENDER FIX)
