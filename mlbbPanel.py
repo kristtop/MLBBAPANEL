@@ -26,25 +26,13 @@ def get_db_connection():
 def init_db():
     conn = get_db_connection()
     cursor = conn.cursor()
-
-    cursor.execute("""
+    cursor.execute('''
         CREATE TABLE IF NOT EXISTS keys_table (
             license_key TEXT PRIMARY KEY,
             hwid TEXT,
-            expiry_timestamp INTEGER,
-            is_locked INTEGER DEFAULT 0
+            expiry_timestamp INTEGER
         )
-    """)
-
-    # auto add column if old database
-    try:
-        cursor.execute("""
-            ALTER TABLE keys_table
-            ADD COLUMN is_locked INTEGER DEFAULT 0
-        """)
-    except:
-        pass
-
+    ''')
     conn.commit()
     conn.close()
 
@@ -224,6 +212,45 @@ Generate Key
 
 <br>
 
+<!-- 🔥 NO LOCK GENERATOR -->
+<div class="card">
+<h2>🌍 NO LOCK Key Generator</h2>
+
+<form action="/admin/generate_nolock" method="POST">
+
+<label>Days</label>
+<select name="days">
+<option value="0">0 Day</option>
+{% for i in range(1,31) %}
+<option value="{{i}}">{{i}} Day</option>
+{% endfor %}
+</select>
+
+<label>Hours</label>
+<select name="hours">
+<option value="0">0 Hour</option>
+{% for i in range(1,25) %}
+<option value="{{i}}">{{i}} Hour</option>
+{% endfor %}
+</select>
+
+<label>Minutes</label>
+<select name="minutes">
+<option value="0">0 Minute</option>
+{% for i in range(1,60) %}
+<option value="{{i}}">{{i}} Minute</option>
+{% endfor %}
+</select>
+
+<button type="submit" style="background:#0a84ff;">
+Generate NO LOCK Key
+</button>
+
+</form>
+</div>
+
+<br>
+
 <small>
 
 </small>
@@ -256,7 +283,6 @@ onkeyup="searchKeys()">
 <th>License Key</th>
 <th>HWID</th>
 <th>Status</th>
-<th>Lock</th>
 <th>Actions</th>
 </tr>
 </thead>
@@ -274,22 +300,6 @@ onkeyup="searchKeys()">
 
 <td>
 {% if current_time >= row[2] %}
-
-<td>
-
-{% if row[3] == 1 %}
-<span style="color:#ff3b30;font-weight:bold;">
-🔒 Locked
-</span>
-
-{% else %}
-<span style="color:#34c759;font-weight:bold;">
-🔓 No Lock
-</span>
-
-{% endif %}
-
-</td>
 <span class="badge-expired">❌ Expired</span>
 {% else %}
 <span class="badge-active">✅ Active</span><br>
@@ -315,12 +325,6 @@ Reset HWID
 <a href="/admin/edit/{{ row[0] }}">
 <button style="background:#0a84ff;color:white;padding:5px 10px;">
 Edit Time
-</button>
-</a>
-
-<a href="/admin/toggle_lock/{{ row[0] }}">
-<button style="background:#ff9500;color:white;padding:5px 10px;">
-Toggle Lock
 </button>
 </a>
 
@@ -529,11 +533,7 @@ def admin_dashboard():
         return redirect('/login')
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("""
-SELECT license_key, hwid, expiry_timestamp, is_locked
-FROM keys_table
-ORDER BY expiry_timestamp DESC
-""")
+    cursor.execute("SELECT license_key, hwid, expiry_timestamp FROM keys_table ORDER BY expiry_timestamp DESC")
     keys = cursor.fetchall()
     conn.close()
 
@@ -933,29 +933,25 @@ def verify_key():
     cursor = conn.cursor()
 
     cursor.execute(
-        "SELECT hwid, expiry_timestamp, is_locked FROM keys_table WHERE license_key = %s",
+        "SELECT hwid, expiry_timestamp FROM keys_table WHERE license_key = %s",
         (key,)
     )
     row = cursor.fetchone()
 
     if row:
-        db_hwid, expiry, is_locked = row
+        db_hwid, expiry = row
         now = int(time.time())
 
         if now >= expiry:
             conn.close()
             return jsonify({"status": 3, "msg": "Key Expired"})
 
-        # auto bind only if unlocked
-        if not db_hwid and is_locked == 0:
-
+        if not db_hwid:
             cursor.execute(
                 "UPDATE keys_table SET hwid = %s WHERE license_key = %s",
                 (hwid, key)
             )
-
             conn.commit()
-
             db_hwid = hwid
 
         if db_hwid != hwid:
@@ -1172,7 +1168,6 @@ Generate Key
 <th>License Key</th>
 <th>HWID</th>
 <th>Status</th>
-<th>Lock</th>
 <th>Actions</th>
 </tr>
 </thead>
@@ -1190,21 +1185,6 @@ Generate Key
 
 <td>
 {% if current_time >= row[2] %}
-<td>
-
-{% if row[3] == 1 %}
-<span style="color:#ff3b30;font-weight:bold;">
-🔒 Locked
-</span>
-
-{% else %}
-<span style="color:#34c759;font-weight:bold;">
-🔓 No Lock
-</span>
-
-{% endif %}
-
-</td>
 <span class="badge-expired">❌ Expired</span>
 {% else %}
 <span class="badge-active">✅ Active</span><br>
@@ -1230,12 +1210,6 @@ Reset HWID
 <a href="/admin/edit/{{ row[0] }}">
 <button style="background:#0a84ff;color:white;padding:5px 10px;">
 Edit Time
-</button>
-</a>
-
-<a href="/admin/toggle_lock/{{ row[0] }}">
-<button style="background:#ff9500;color:white;padding:5px 10px;">
-Toggle Lock
 </button>
 </a>
 
@@ -1414,11 +1388,7 @@ def admin_dashboard():
         return redirect('/login')
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("""
-SELECT license_key, hwid, expiry_timestamp, is_locked
-FROM keys_table
-ORDER BY expiry_timestamp DESC
-""")
+    cursor.execute("SELECT license_key, hwid, expiry_timestamp FROM keys_table ORDER BY expiry_timestamp DESC")
     keys = cursor.fetchall()
     conn.close()
 
@@ -1595,6 +1565,64 @@ def admin_generate():
 # =========================
 # RESET HWID
 # =========================
+
+@app.route('/admin/generate_nolock', methods=['POST'])
+def admin_generate_nolock():
+
+    if not session.get("admin_logged_in"):
+        return redirect('/login')
+
+    days = int(request.form.get('days', 0))
+    hours = int(request.form.get('hours', 0))
+    minutes = int(request.form.get('minutes', 0))
+
+    if days == 0 and hours == 0 and minutes == 0:
+        return '''
+        <script>
+        alert("Enter Time First");
+        window.location.href="/";
+        </script>
+        '''
+
+    random_str = ''.join(
+        random.choices(string.ascii_letters + string.digits, k=14)
+    )
+
+    expiry_seconds = (
+        (days * 86400) +
+        (hours * 3600) +
+        (minutes * 60)
+    )
+
+    if days > 0:
+        prefix = f"NOLOCK_{days}d"
+    elif hours > 0:
+        prefix = f"NOLOCK_{hours}h"
+    else:
+        prefix = f"NOLOCK_{minutes}m"
+
+    new_key = prefix + random_str
+    expiry_time = int(time.time()) + expiry_seconds
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    # IMPORTANT: hwid is ALWAYS empty (NO LOCK)
+    cursor.execute(
+        "INSERT INTO keys_table (license_key, hwid, expiry_timestamp) VALUES (%s, '', %s)",
+        (new_key, expiry_time)
+    )
+
+    conn.commit()
+    conn.close()
+
+    return f'''
+    <script>
+    alert("NO LOCK KEY GENERATED\\n\\n{new_key}");
+    window.location.href="/";
+    </script>
+    '''
+
 @app.route('/admin/reset/<string:key>', methods=['GET'])
 def admin_reset_hwid(key):
 
@@ -1630,83 +1658,6 @@ def admin_reset_hwid(key):
     window.location.href="/";
     </script>
     '''
-    # =========================
-# TOGGLE LOCK
-# =========================
-@app.route('/admin/reset/<string:key>', methods=['GET'])
-def admin_reset_hwid(key):
-
-    if not session.get("admin_logged_in"):
-        return redirect('/login')
-
-    conn = get_db_connection()
-    cursor = conn.cursor()
-
-    cursor.execute(
-        "UPDATE keys_table SET hwid = '' WHERE license_key = %s",
-        (key,)
-    )
-
-    conn.commit()
-    conn.close()
-
-    return f'''
-    <script>
-    alert("HWID Reset Success\\n\\n{key}");
-    window.location.href="/";
-    </script>
-    '''
-
-# =========================
-# TOGGLE LOCK
-# =========================
-@app.route('/admin/toggle_lock/<string:key>', methods=['GET'])
-def toggle_lock(key):
-
-    if not session.get("admin_logged_in"):
-        return redirect('/login')
-
-    conn = get_db_connection()
-    cursor = conn.cursor()
-
-    cursor.execute(
-        "SELECT is_locked FROM keys_table WHERE license_key = %s",
-        (key,)
-    )
-
-    row = cursor.fetchone()
-
-    if not row:
-        conn.close()
-
-        return '''
-        <script>
-        alert("Key Not Found");
-        window.location.href="/";
-        </script>
-        '''
-
-    current_lock = row[0]
-
-    new_lock = 0 if current_lock == 1 else 1
-
-    cursor.execute(
-        "UPDATE keys_table SET is_locked = %s WHERE license_key = %s",
-        (new_lock, key)
-    )
-
-    conn.commit()
-    conn.close()
-
-    status = "LOCKED" if new_lock == 1 else "UNLOCKED"
-
-    return f'''
-    <script>
-    alert("Key {status}\\n\\n{key}");
-    window.location.href="/";
-    </script>
-    '''
-    
 # =========================
 # DELETE KEY
 # =========================
@@ -1895,29 +1846,25 @@ def verify_key():
     cursor = conn.cursor()
 
     cursor.execute(
-        "SELECT hwid, expiry_timestamp, is_locked FROM keys_table WHERE license_key = %s",
+        "SELECT hwid, expiry_timestamp FROM keys_table WHERE license_key = %s",
         (key,)
     )
     row = cursor.fetchone()
 
     if row:
-        db_hwid, expiry, is_locked = row
+        db_hwid, expiry = row
         now = int(time.time())
 
         if now >= expiry:
             conn.close()
             return jsonify({"status": 3, "msg": "Key Expired"})
 
-        # auto bind only if unlocked
-        if not db_hwid and is_locked == 0:
-
+        if not db_hwid:
             cursor.execute(
                 "UPDATE keys_table SET hwid = %s WHERE license_key = %s",
                 (hwid, key)
             )
-
             conn.commit()
-
             db_hwid = hwid
 
         if db_hwid != hwid:
