@@ -1633,6 +1633,33 @@ def admin_reset_hwid(key):
     # =========================
 # TOGGLE LOCK
 # =========================
+@app.route('/admin/reset/<string:key>', methods=['GET'])
+def admin_reset_hwid(key):
+
+    if not session.get("admin_logged_in"):
+        return redirect('/login')
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    cursor.execute(
+        "UPDATE keys_table SET hwid = '' WHERE license_key = %s",
+        (key,)
+    )
+
+    conn.commit()
+    conn.close()
+
+    return f'''
+    <script>
+    alert("HWID Reset Success\\n\\n{key}");
+    window.location.href="/";
+    </script>
+    '''
+
+# =========================
+# TOGGLE LOCK
+# =========================
 @app.route('/admin/toggle_lock/<string:key>', methods=['GET'])
 def toggle_lock(key):
 
