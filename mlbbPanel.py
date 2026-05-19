@@ -28,11 +28,10 @@ def init_db():
     cursor = conn.cursor()
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS keys_table (
-    license_key TEXT PRIMARY KEY,
-    hwid TEXT,
-    expiry_timestamp INTEGER,
-    no_lock INTEGER DEFAULT 0
-)
+            license_key TEXT PRIMARY KEY,
+            hwid TEXT,
+            expiry_timestamp INTEGER
+        )
     ''')
     conn.commit()
     conn.close()
@@ -271,12 +270,6 @@ onkeyup="searchKeys()">
 
 <td style="display:flex;gap:5px;flex-wrap:wrap;">
 
-<a href="/admin/nolock/{{ row[0] }}">
-    <button style="background:#7c3aed;color:white;padding:5px 10px;">
-        No Lock
-    </button>
-</a>
-
 <button
 type="button"
 onclick="copyKey('{{ row[0] }}')"
@@ -501,7 +494,7 @@ def admin_dashboard():
         return redirect('/login')
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT license_key, hwid, expiry_timestamp, no_lock FROM keys_table ORDER BY expiry_timestamp DESC")
+    cursor.execute("SELECT license_key, hwid, expiry_timestamp FROM keys_table ORDER BY expiry_timestamp DESC")
     keys = cursor.fetchall()
     conn.close()
 
@@ -739,50 +732,6 @@ def admin_delete_key(key):
     window.location.href="/";
     </script>
     '''
-
-
-# =========================
-# NO LOCK TOGGLE  ✅ DITO DAPAT
-# =========================
-@app.route('/admin/nolock/<string:key>', methods=['GET'])
-def toggle_no_lock(key):
-
-    if not session.get("admin_logged_in"):
-        return redirect('/login')
-
-    conn = get_db_connection()
-    cursor = conn.cursor()
-
-    cursor.execute(
-        "SELECT no_lock FROM keys_table WHERE license_key = %s",
-        (key,)
-    )
-
-    row = cursor.fetchone()
-
-    if not row:
-        conn.close()
-        return '<script>alert("Key Not Found");window.location.href="/";</script>'
-
-    current = row[0]
-    new_value = 0 if current == 1 else 1
-
-    cursor.execute(
-        "UPDATE keys_table SET no_lock = %s WHERE license_key = %s",
-        (new_value, key)
-    )
-
-    conn.commit()
-    conn.close()
-
-    status = "🔓 NO LOCK ENABLED" if new_value == 1 else "🔒 NO LOCK DISABLED"
-
-    return f'''
-    <script>
-    alert("{status}\\n\\n{key}");
-    window.location.href="/";
-    </script>
-    '''
 # =========================
 # EDIT TIME
 # =========================
@@ -935,50 +884,29 @@ def admin_edit_time(key):
 # =========================
 @app.route('/verify', methods=['POST'])
 def verify_key():
-    try:
-        key = request.form.get('key')
-        hwid = request.form.get('device_id')
+    key = request.form.get('key')
+    hwid = request.form.get('device_id')
 
-        if not key or not hwid:
-            return jsonify({"status": 1, "msg": "Missing Parameters"})
+    if not key or not hwid:
+        return jsonify({"status": 1, "msg": "Missing Parameters"})
 
-        conn = get_db_connection()
-        cursor = conn.cursor()
+    conn = get_db_connection()
+    cursor = conn.cursor()
 
-        cursor.execute(
-            "SELECT hwid, expiry_timestamp, no_lock FROM keys_table WHERE license_key = %s",
-            (key,)
-        )
+    cursor.execute(
+        "SELECT hwid, expiry_timestamp FROM keys_table WHERE license_key = %s",
+        (key,)
+    )
+    row = cursor.fetchone()
 
-        row = cursor.fetchone()
-
-        if not row:
-            conn.close()
-            return jsonify({"status": 4, "msg": "Invalid Key"})
-
-        db_hwid, expiry, no_lock = row
+    if row:
+        db_hwid, expiry = row
         now = int(time.time())
 
-        # SAFE CHECK (prevent None crash)
-        if not expiry:
-            conn.close()
-            return jsonify({"status": 5, "msg": "No Expiry Set"})
-
-        # expired
         if now >= expiry:
             conn.close()
             return jsonify({"status": 3, "msg": "Key Expired"})
 
-        # NO LOCK FEATURE
-        if no_lock == 1:
-            conn.close()
-            return jsonify({
-                "status": 0,
-                "msg": "Login Success (No Lock)",
-                "expiry": expiry
-            })
-
-        # first bind
         if not db_hwid:
             cursor.execute(
                 "UPDATE keys_table SET hwid = %s WHERE license_key = %s",
@@ -987,24 +915,79 @@ def verify_key():
             conn.commit()
             db_hwid = hwid
 
-        # device mismatch
         if db_hwid != hwid:
             conn.close()
             return jsonify({"status": 2, "msg": "Key used on another device"})
 
         conn.close()
-
         return jsonify({
             "status": 0,
             "msg": "Login Success",
             "expiry": expiry
         })
 
-    except Exception as e:
-        return jsonify({
-            "status": 500,
-            "msg": str(e)
-        })
+    conn.close()
+    return jsonify({"status": 4, "msg": "Invalid Key"})
+
+# =========================
+# START SERVER (RENDER FIX)
+# =========================
+if __name__ == "__main__":
+    init_db()
+
+    port = int(os.environ.get("PORT", 10000))
+    app.run(host="0.0.0.0", port=port)
+
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+
+    if request.method == 'POST':
+
+        password = request.form.get('password')
+
+        if password == ADMIN_PASSWORD:
+
+            session['admin_logged_in'] = True
+
+            return redirect('/')
+
+        return '''
+        <script>
+        alert("Wrong Password");
+        window.location.href="/login";
+        </script>
+        '''
+
+    return render_template_string(LOGIN_TEMPLATE)
+
+@app.route('/logout')
+def logout():
+
+    session.clear()
+
+    return redirect('/login')
+
+@app.route('/', methods=['GET'])
+def admin_dashboard():
+
+    if not session.get("admin_logged_in"):
+        return redirect('/login')
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT license_key, hwid, expiry_timestamp FROM keys_table ORDER BY expiry_timestamp DESC")
+    keys = cursor.fetchall()
+    conn.close()
+
+    def datetime_format(timestamp):
+        return time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(timestamp))
+
+    return render_template_string(
+        HTML_TEMPLATE,
+        keys=keys,
+        current_time=int(time.time()),
+        datetime_format=datetime_format
+    )
 
 # =========================
 # START SERVER (RENDER FIX)
