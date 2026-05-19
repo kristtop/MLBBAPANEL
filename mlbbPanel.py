@@ -1358,58 +1358,7 @@ def admin_edit_time(key):
     </body>
     </html>
     '''
-    
-
-# =========================
-# VERIFY API
-# =========================
-@app.route('/verify', methods=['POST'])
-def verify_key():
-    key = request.form.get('key')
-    hwid = request.form.get('device_id')
-
-    if not key or not hwid:
-        return jsonify({"status": 1, "msg": "Missing Parameters"})
-
-    conn = get_db_connection()
-    cursor = conn.cursor()
-
-    cursor.execute(
-        "SELECT hwid, expiry_timestamp FROM keys_table WHERE license_key = %s",
-        (key,)
-    )
-    row = cursor.fetchone()
-
-    if row:
-        db_hwid, expiry = row
-        now = int(time.time())
-
-        if now >= expiry:
-            conn.close()
-            return jsonify({"status": 3, "msg": "Key Expired"})
-
-        if not db_hwid:
-            cursor.execute(
-                "UPDATE keys_table SET hwid = %s WHERE license_key = %s",
-                (hwid, key)
-            )
-            conn.commit()
-            db_hwid = hwid
-
-        if db_hwid != hwid:
-            conn.close()
-            return jsonify({"status": 2, "msg": "Key used on another device"})
-
-        conn.close()
-        return jsonify({
-            "status": 0,
-            "msg": "Login Success",
-            "expiry": expiry
-        })
-
-    conn.close()
-    return jsonify({"status": 4, "msg": "Invalid Key"})
-
+  
 # =========================
 # START SERVER (RENDER FIX)
 # =========================
