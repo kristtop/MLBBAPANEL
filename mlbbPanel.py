@@ -947,16 +947,16 @@ def verify_key():
             return jsonify({"status": 3, "msg": "Key Expired"})
 
         # auto bind only if unlocked
-if not db_hwid and is_locked == 0:
+        if not db_hwid and is_locked == 0:
 
-    cursor.execute(
-        "UPDATE keys_table SET hwid = %s WHERE license_key = %s",
-        (hwid, key)
-    )
+            cursor.execute(
+                "UPDATE keys_table SET hwid = %s WHERE license_key = %s",
+                (hwid, key)
+            )
 
-    conn.commit()
+            conn.commit()
 
-    db_hwid = hwid
+            db_hwid = hwid
 
         if db_hwid != hwid:
             conn.close()
@@ -1882,16 +1882,16 @@ def verify_key():
             return jsonify({"status": 3, "msg": "Key Expired"})
 
         # auto bind only if unlocked
-if not db_hwid and is_locked == 0:
+        if not db_hwid and is_locked == 0:
 
-    cursor.execute(
-        "UPDATE keys_table SET hwid = %s WHERE license_key = %s",
-        (hwid, key)
-    )
+            cursor.execute(
+                "UPDATE keys_table SET hwid = %s WHERE license_key = %s",
+                (hwid, key)
+            )
 
-    conn.commit()
+            conn.commit()
 
-    db_hwid = hwid
+            db_hwid = hwid
 
         if db_hwid != hwid:
             conn.close()
