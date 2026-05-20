@@ -23,18 +23,20 @@ def get_db_connection():
 def init_db():
     conn = get_db_connection()
     cursor = conn.cursor()
+    # Nagdagdag tayo ng game_type column (Default ay 'CODM' para sa mga lumang keys)
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS keys_table (
             license_key TEXT PRIMARY KEY,
             hwid TEXT,
-            expiry_timestamp INTEGER
+            expiry_timestamp INTEGER,
+            game_type TEXT DEFAULT 'CODM'
         )
     ''')
     conn.commit()
     conn.close()
 
 # =========================
-# HTML PANEL (UPDATED UI WITH NO LOCK)
+# HTML PANEL (UPDATED WITH GAME TYPE)
 # =========================
 HTML_TEMPLATE = """
 <!DOCTYPE html>
@@ -65,6 +67,567 @@ input,select,button{
     padding:12px;
     border-radius:5px;
     border:1px solid #444;
+    font-size:15px;
+    margin-bottom:10px;
+}
+input,select{background:#2a2a2a;color:white;}
+button{
+    background:#ff3b30;
+    color:white;
+    border:none;
+    cursor:pointer;
+}
+table{
+    width:100%;
+    border-collapse:collapse;
+    margin-top:15px;
+}
+th,td{
+    border:1px solid #333;
+    padding:12px;
+    text-align:left;
+}
+th{
+    background:#2a2a2a;
+    color:#ff3b30;
+}
+tr:nth-child(even){background:#161616;}
+.badge-active{color:#34c759;font-weight:bold;}
+.badge-expired{color:#ff3b30;font-weight:bold;}
+.badge-nolock{color:#0a84ff;font-weight:bold;}
+.btn-reset{background:#ffcc00;color:black;padding:5px 10px;}
+.btn-nolock{background:#0a84ff;color:white;padding:5px 10px;}
+.btn-delete{background:#8e8e93;color:white;padding:5px 10px;}
+.badge-codm{background:#e67e22;color:white;padding:3px 7px;border-radius:3px;font-size:11px;font-weight:bold;}
+.badge-mlbb{background:#9b59b6;color:white;padding:3px 7px;border-radius:3px;font-size:11px;font-weight:bold;}
+</style>
+</head>
+
+<body>
+
+<div class="container">
+
+<div style="display:flex;justify-content:space-between;align-items:center;">
+
+<h1>🤖 Slider Mods VIP Dashboard</h1>
+
+<a href="/logout">
+<button style="background:#ff3b30;color:white;">
+Logout
+</button>
+</a>
+
+</div>
+
+<div class="card">
+<h2>🔑 Custom Key Generator</h2>
+
+<form action="/admin/custom_generate" method="POST">
+
+<label>Target Game:</label>
+<select name="game_type" style="border: 1px solid #ff3b30;">
+<option value="CODM">Call Of Duty Mobile (CODM)</option>
+<option value="MLBB">Mobile Legends (MLBB)</option>
+</select>
+
+<br>
+
+<input type="text"
+       name="custom_key"
+       placeholder="Enter Custom Key"
+       required>
+
+<br>
+
+<input type="number" name="days" placeholder="Days" value="0">
+<input type="number" name="hours" placeholder="Hours" value="0">
+<input type="number" name="minutes" placeholder="Minutes" value="0">
+
+<br>
+
+<button type="submit">
+Generate Custom Key
+</button>
+
+</form>
+
+</div>
+
+<div class="card">
+<h2>🎲 Auto Random Key Generator</h2>
+
+<form action="/admin/generate" method="POST">
+
+<label>Target Game:</label>
+<select name="game_type" style="border: 1px solid #ff3b30; width:100%;">
+<option value="CODM">Call Of Duty Mobile (CODM)</option>
+<option value="MLBB">Mobile Legends (MLBB)</option>
+</select>
+
+<br>
+
+<label>Days</label>
+<select name="days">
+<option value="0">0 Day</option>
+{% for i in range(1,31) %}
+<option value="{{i}}">{{i}} Day</option>
+{% endfor %}
+</select>
+
+<label>Hours</label>
+<select name="hours">
+<option value="0">0 Hour</option>
+{% for i in range(1,25) %}
+<option value="{{i}}">{{i}} Hour</option>
+{% endfor %}
+</select>
+
+<label>Minutes</label>
+<select name="minutes">
+<option value="0">0 Minute</option>
+{% for i in range(1,60) %}
+<option value="{{i}}">{{i}} Minute</option>
+{% endfor %}
+</select>
+
+<br>
+
+<button type="submit">
+Generate Random Key
+</button>
+
+</form>
+
+</div>
+
+<div class="card">
+
+<h2>🗄️ Database Keys</h2>
+
+<input
+type="text"
+id="searchInput"
+placeholder="Search Key or Game (e.g. CODM, MLBB)..."
+style="
+width:100%;
+padding:12px;
+margin-top:10px;
+margin-bottom:15px;
+background:#2a2a2a;
+color:white;
+border:1px solid #444;
+border-radius:5px;
+"
+onkeyup="searchKeys()">
+
+<table>
+<thead>
+<tr>
+<th>License Key</th>
+<th>Target Game</th>
+<th>HWID / Status</th>
+<th>Expiry Status</th>
+<th>Actions</th>
+</tr>
+</thead>
+
+<tbody>
+
+{% for row in keys %}
+<tr>
+
+<td style="font-family:monospace;color:#ffe957;">{{ row[0] }}</td>
+
+<!-- Ipinapakita kung CODM o MLBB ang key -->
+<td>
+{% if row[3] == 'MLBB' %}
+<span class="badge-mlbb">🎮 MLBB</span>
+{% else %}
+<span class="badge-codm">🔫 CODM</span>
+{% endif %}
+</td>
+
+<td style="font-family:monospace;font-size:12px;color:#aaa;">
+{% if row[1] == 'NO_LOCK' %}
+<span class="badge-nolock">🔓 Multi-Device (No Lock)</span>
+{% elif row[1] %}
+{{ row[1] }}
+{% else %}
+<span style="color:#34c759;">Fresh (Logs first device)</span>
+{% endif %}
+</td>
+
+<td>
+{% if current_time >= row[2] %}
+<span class="badge-expired">❌ Expired</span>
+{% else %}
+<span class="badge-active">✅ Active</span><br>
+<small>{{ datetime_format(row[2]) }}</small>
+{% endif %}
+</td>
+
+<td style="display:flex;gap:5px;flex-wrap:wrap;">
+
+<button
+type="button"
+onclick="copyKey('{{ row[0] }}')"
+style="background:#34c759;color:white;padding:5px 10px;border:none;border-radius:5px;cursor:pointer;">
+Copy Key
+</button>
+
+<a href="/admin/reset/{{ row[0] }}">
+<button class="btn-reset">
+Reset HWID
+</button>
+</a>
+
+<a href="/admin/nolock/{{ row[0] }}">
+<button class="btn-nolock">
+No Lock
+</button>
+</a>
+
+<a href="/admin/edit/{{ row[0] }}">
+<button style="background:#0a84ff;color:white;padding:5px 10px;">
+Edit Time
+</button>
+</a>
+
+<a href="/admin/delete/{{ row[0] }}">
+<button class="btn-delete">
+Delete
+</button>
+</a>
+
+</td>
+
+</tr>
+{% endfor %}
+
+</tbody>
+</table>
+
+</div>
+
+</div>
+
+<script>
+async function copyKey(key){
+    try{
+        await navigator.clipboard.writeText(key);
+        alert("Copied Key:\\n\\n" + key);
+    }catch(err){
+        const tempInput = document.createElement("input");
+        tempInput.value = key;
+        document.body.appendChild(tempInput);
+        tempInput.select();
+        document.execCommand("copy");
+        document.body.removeChild(tempInput);
+        alert("Copied Key:\\n\\n" + key);
+    }
+}
+
+function searchKeys(){
+    let input = document.getElementById("searchInput");
+    let filter = input.value.toUpperCase();
+    let table = document.querySelector("table");
+    let tr = table.getElementsByTagName("tr");
+    for(let i = 1; i < tr.length; i++){
+        let tdKey = tr[i].getElementsByTagName("td")[0];
+        let tdGame = tr[i].getElementsByTagName("td")[1];
+        if(tdKey || tdGame){
+            let txtKey = tdKey.textContent || tdKey.innerText;
+            let txtGame = tdGame.textContent || tdGame.innerText;
+            if(txtKey.toUpperCase().indexOf(filter) > -1 || txtGame.toUpperCase().indexOf(filter) > -1){
+                tr[i].style.display = "";
+            }else{
+                tr[i].style.display = "none";
+            }
+        }
+    }
+}
+</script>
+
+</body>
+</html>
+"""
+
+# HTML LOGIN AND ROUTES REMAIN UNCHANGED UNTIL KEY GENERATORS...
+# [Admins, log-in helpers are exactly the same as yours]
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        password = request.form.get('password')
+        if password == ADMIN_PASSWORD:
+            session['admin_logged_in'] = True
+            return redirect('/')
+        return '<script>alert("Wrong Password");window.location.href="/login";</script>'
+    return render_template_string(LOGIN_TEMPLATE)
+
+@app.route('/logout')
+def logout():
+    session.clear()
+    return redirect('/login')
+
+@app.route('/', methods=['GET'])
+def admin_dashboard():
+    if not session.get("admin_logged_in"):
+        return redirect('/login')
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    # Kasama na ang game_type sa SELECT query
+    cursor.execute("SELECT license_key, hwid, expiry_timestamp, game_type FROM keys_table ORDER BY expiry_timestamp DESC")
+    keys = cursor.fetchall()
+    conn.close()
+
+    def datetime_format(timestamp):
+        return time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(timestamp))
+
+    return render_template_string(
+        HTML_TEMPLATE,
+        keys=keys,
+        current_time=int(time.time()),
+        datetime_format=datetime_format
+    )
+
+# =========================
+# KEY GENERATORS (UPDATED)
+# =========================
+@app.route('/admin/custom_generate', methods=['POST'])
+def custom_generate():
+    if not session.get("admin_logged_in"):
+        return redirect('/login')
+
+    game_type = request.form.get('game_type', 'CODM')
+    custom_key = request.form.get('custom_key')
+    days = int(request.form.get('days', 0))
+    hours = int(request.form.get('hours', 0))
+    minutes = int(request.form.get('minutes', 0))
+
+    if not custom_key:
+        return '<script>alert("Enter Custom Key");window.location.href="/";</script>'
+
+    # Lalagyan natin ng prefix para hindi maghalo ang format
+    final_key = f"{game_type}_{custom_key}"
+
+    if days == 0 and hours == 0 and minutes == 0:
+        expiry_time = 4102444800
+    else:
+        expiry_seconds = (days * 86400) + (hours * 3600) + (minutes * 60)
+        expiry_time = int(time.time()) + expiry_seconds
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    try:
+        cursor.execute("SELECT license_key FROM keys_table WHERE license_key = %s", (final_key,))
+        if cursor.fetchone():
+            conn.close()
+            return '<script>alert("Key Already Exists");window.location.href="/";</script>'
+
+        cursor.execute("INSERT INTO keys_table (license_key, hwid, expiry_timestamp, game_type) VALUES (%s, '', %s, %s)", (final_key, expiry_time, game_type))
+        conn.commit()
+        conn.close()
+        return f'<script>alert("Custom Key Generated for {game_type}\\n\\n{final_key}");window.location.href="/";</script>'
+    except Exception as e:
+        conn.rollback()
+        conn.close()
+        return f'<script>alert("Error:\\n\\n{str(e)}");window.location.href="/";</script>'
+
+@app.route('/admin/generate', methods=['POST'])
+def admin_generate():
+    if not session.get("admin_logged_in"):
+        return redirect('/login')
+
+    game_type = request.form.get('game_type', 'CODM')
+    days = int(request.form.get('days', 0))
+    hours = int(request.form.get('hours', 0))
+    minutes = int(request.form.get('minutes', 0))
+
+    if days == 0 and hours == 0 and minutes == 0:
+        return '<script>alert("Enter Time First");window.location.href="/";</script>'
+
+    random_str = ''.join(random.choices(string.ascii_letters + string.digits, k=14))
+    expiry_seconds = (days * 86400) + (hours * 3600) + (minutes * 60)
+
+    # Gumawa ng custom name tag base sa laro at validity nito
+    if days > 0:
+        prefix = f"{game_type}_{days}d_"
+    elif hours > 0:
+        prefix = f"{game_type}_{hours}h_"
+    else:
+        prefix = f"{game_type}_{minutes}m_"
+
+    new_key = prefix + random_str
+    expiry_time = int(time.time()) + expiry_seconds
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("INSERT INTO keys_table (license_key, hwid, expiry_timestamp, game_type) VALUES (%s, '', %s, %s)", (new_key, expiry_time, game_type))
+    conn.commit()
+    conn.close()
+
+    return f'<script>alert("Generated Key for {game_type}:\\n\\n{new_key}\\n\\nExpiry:\\n{days}D {hours}H {minutes}M");window.location.href="/";</script>'
+
+# =========================
+# RESET HWID / NO LOCK / ACTIONS
+# =========================
+@app.route('/admin/reset/<string:key>', methods=['GET'])
+def admin_reset_hwid(key):
+    if not session.get("admin_logged_in"):
+        return redirect('/login')
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("UPDATE keys_table SET hwid = '' WHERE license_key = %s", (key,))
+    conn.commit()
+    conn.close()
+    return f'<script>alert("HWID Reset Success\\n\\n{key}");window.location.href="/";</script>'
+
+@app.route('/admin/nolock/<string:key>', methods=['GET'])
+def admin_no_lock_hwid(key):
+    if not session.get("admin_logged_in"):
+        return redirect('/login')
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("UPDATE keys_table SET hwid = 'NO_LOCK' WHERE license_key = %s", (key,))
+    conn.commit()
+    conn.close()
+    return f'<script>alert("Key set to NO LOCK\\n\\n{key}");window.location.href="/";</script>'
+
+@app.route('/admin/delete/<string:key>', methods=['GET'])
+def admin_delete_key(key):
+    if not session.get("admin_logged_in"):
+        return redirect('/login')
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM keys_table WHERE license_key = %s", (key,))
+    conn.commit()
+    conn.close()
+    return f'<script>alert("Deleted Key\\n\\n{key}");window.location.href="/";</script>'
+
+@app.route('/admin/edit/<string:key>', methods=['GET', 'POST'])
+def admin_edit_time(key):
+    if not session.get("admin_logged_in"):
+        return redirect('/login')
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    if request.method == 'POST':
+        days = int(request.form.get('days', 0))
+        hours = int(request.form.get('hours', 0))
+        minutes = int(request.form.get('minutes', 0))
+        added_seconds = (days * 86400) + (hours * 3600) + (minutes * 60)
+        cursor.execute("SELECT expiry_timestamp FROM keys_table WHERE license_key = %s", (key,))
+        row = cursor.fetchone()
+        if row:
+            current_expiry = row[0]
+            now = int(time.time())
+            new_expiry = (now if current_expiry < now else current_expiry) + added_seconds
+            cursor.execute("UPDATE keys_table SET expiry_timestamp = %s WHERE license_key = %s", (new_expiry, key))
+            conn.commit()
+        conn.close()
+        return '<script>alert("Time Updated Successfully");window.location.href="/";</script>'
+    conn.close()
+    return f'<body><form method="POST"><input type="number" name="days" value="0"><input type="number" name="hours" value="0"><input type="number" name="minutes" value="0"><button type="submit">Add Time</button></form></body>'
+
+# ==========================================
+# VERIFY API (STRICT GAME SEPARATION FIX)
+# ==========================================
+@app.route('/verify', methods=['POST'])
+def verify_key():
+    key = request.form.get('key')
+    hwid = request.form.get('device_id')
+    
+    # Kukuha ng bagong parameter 'game' mula sa Lua, kung wala, automatic CODM muna (para sa old compatibility)
+    game = request.form.get('game', 'CODM').upper()
+
+    if not key or not hwid:
+        return jsonify({"status": 1, "msg": "Missing Parameters"})
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    # Isasama natin ang pagkuha ng game_type sa query
+    cursor.execute("SELECT hwid, expiry_timestamp, game_type FROM keys_table WHERE license_key = %s", (key,))
+    row = cursor.fetchone()
+
+    if row:
+        db_hwid, expiry, db_game_type = row
+        now = int(time.time())
+
+        # --- STRICT GAME CHECK VALIDATION ---
+        # Kung ang game ng panel na nag-re-request ay hindi katugma ng game_type sa DB, i-bblock natin agad!
+        if db_game_type and db_game_type.upper() != game:
+            conn.close()
+            return jsonify({"status": 4, "msg": f"This key belongs to {db_game_type} only!"})
+        # -------------------------------------
+
+        # Check Expired
+        if now >= expiry:
+            conn.close()
+            return jsonify({"status": 3, "msg": "Key Expired"})
+
+        # NO LOCK BYPASS LOGIC
+        if db_hwid == 'NO_LOCK':
+            conn.close()
+            return jsonify({
+                "status": 0,
+                "msg": "Login Success (No Lock Mode)",
+                "expiry": expiry
+            })
+
+        # Kung fresh key (empty pa ang HWID), i-lock sa unang device na gagamit
+        if not db_hwid:
+            cursor.execute("UPDATE keys_table SET hwid = %s WHERE license_key = %s", (hwid, key))
+            conn.commit()
+            db_hwid = hwid
+
+        # Kung may nakatali nang HWID at hindi tugma sa gamit ngayon
+        if db_hwid != hwid:
+            conn.close()
+            return jsonify({"status": 2, "msg": "Key used on another device"})
+
+        conn.close()
+        return jsonify({
+            "status": 0,
+            "msg": "Login Success",
+            "expiry": expiry
+        })
+
+    conn.close()
+    return jsonify({"status": 4, "msg": "Invalid Key"})
+
+LOGIN_TEMPLATE = """
+<!DOCTYPE html>
+<html>
+<head>
+<title>Admin Login</title>
+<style>
+body{background:#121212;color:white;font-family:Arial;display:flex;justify-content:center;align-items:center;height:100vh;}
+.box{background:#1e1e1e;padding:30px;border-radius:10px;width:350px;border:1px solid #333;}
+input,button{width:100%;padding:12px;margin-top:10px;border:none;border-radius:5px;}
+input{background:#2a2a2a;color:white;}
+button{background:#ff3b30;color:white;cursor:pointer;}
+h2{text-align:center;color:#ff3b30;}
+</style>
+</head>
+<body>
+<div class="box">
+<h2>🔐 Admin Login</h2>
+<form method="POST">
+<input type="password" name="password" placeholder="Enter Password" required>
+<button type="submit">Login</button>
+</form>
+</div>
+</body>
+</html>
+"""
+
+if __name__ == "__main__":
+    init_db()
+    port = int(os.environ.get("PORT", 10000))
+    app.run(host="0.0.0.0", port=port)
+
     font-size:15px;
     margin-bottom:10px;
 }
