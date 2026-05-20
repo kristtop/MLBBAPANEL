@@ -23,13 +23,14 @@ def get_db_connection():
 def init_db():
     conn = get_db_connection()
     cursor = conn.cursor()
+    # TINAMAAN AT INAYOS NA DITO:
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS keys_table (
             license_key TEXT PRIMARY KEY,
             hwid TEXT,
             expiry_timestamp INTEGER
         )
-    '''' cabinet_id)
+    ''')
     conn.commit()
 
     try:
@@ -335,7 +336,6 @@ def admin_generate():
     random_str = ''.join(random.choices(string.ascii_letters + string.digits, k=14))
     expiry_seconds = (days * 86400) + (hours * 3600) + (minutes * 60)
 
-    # --- [FIXED LOGIC]: Parehong Slider_ ang prefix at walang extra underscores! ---
     if days > 0:
         prefix = f"Slider_{days}d"
     elif hours > 0:
@@ -343,7 +343,7 @@ def admin_generate():
     else:
         prefix = f"Slider_{minutes}m"
 
-    new_key = prefix + random_str  # Idinikit agad para walang _ sa pagitan ng duration at random string
+    new_key = prefix + random_str
     expiry_time = int(time.time()) + expiry_seconds
 
     conn = get_db_connection()
@@ -446,7 +446,6 @@ def verify_key():
         db_hwid, expiry, db_game = row
         now = int(time.time())
 
-        # Strict Separation Check (Kahit magkahawig ang structure ng text, dito sila mahaharang base sa column)
         if db_game.upper() != client_game.upper():
             conn.close()
             return jsonify({"status": 4, "msg": f"This key belongs to {db_game} only!"})
