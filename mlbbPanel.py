@@ -23,27 +23,25 @@ def get_db_connection():
 def init_db():
     conn = get_db_connection()
     cursor = conn.cursor()
-    # Gumawa ng table kung wala pa
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS keys_table (
             license_key TEXT PRIMARY KEY,
             hwid TEXT,
             expiry_timestamp INTEGER
         )
-    ''')
+    '''' cabinet_id)
     conn.commit()
 
-    # MAGIC MIGRATION: Idadagdag ang 'game' column kung luma ang table para hindi mag-crash
     try:
         cursor.execute("ALTER TABLE keys_table ADD COLUMN game TEXT DEFAULT 'MLBB';")
         conn.commit()
     except Exception:
-        conn.rollback() # Laktawan kung may column na
+        conn.rollback() 
         
     conn.close()
 
 # =========================
-# HTML PANEL (UPDATED UI WITH MULTI-GAME GENERATOR)
+# HTML PANEL
 # =========================
 HTML_TEMPLATE = """
 <!DOCTYPE html>
@@ -52,52 +50,17 @@ HTML_TEMPLATE = """
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Slider Mods - VIP Panel</title>
-
 <style>
-body{
-    background:#121212;
-    color:#e0e0e0;
-    font-family:Arial;
-    padding:20px;
-}
+body{background:#121212;color:#e0e0e0;font-family:Arial;padding:20px;}
 .container{max-width:1000px;margin:auto;}
-.card{
-    background:#1e1e1e;
-    padding:20px;
-    border-radius:10px;
-    margin-bottom:20px;
-    border:1px solid #333;
-}
+.card{background:#1e1e1e;padding:20px;border-radius:10px;margin-bottom:20px;border:1px solid #333;}
 h1,h2{color:#ff3b30;}
-
-input,select,button{
-    padding:12px;
-    border-radius:5px;
-    border:1px solid #444;
-    font-size:15px;
-    margin-bottom:10px;
-}
+input,select,button{padding:12px;border-radius:5px;border:1px solid #444;font-size:15px;margin-bottom:10px;}
 input,select{background:#2a2a2a;color:white;}
-button{
-    background:#ff3b30;
-    color:white;
-    border:none;
-    cursor:pointer;
-}
-table{
-    width:100%;
-    border-collapse:collapse;
-    margin-top:15px;
-}
-th,td{
-    border:1px solid #333;
-    padding:12px;
-    text-align:left;
-}
-th{
-    background:#2a2a2a;
-    color:#ff3b30;
-}
+button{background:#ff3b30;color:white;border:none;cursor:pointer;}
+table{width:100%;border-collapse:collapse;margin-top:15px;}
+th,td{border:1px solid #333;padding:12px;text-align:left;}
+th{background:#2a2a2a;color:#ff3b30;}
 tr:nth-child(even){background:#161616;}
 .badge-active{color:#34c759;font-weight:bold;}
 .badge-expired{color:#ff3b30;font-weight:bold;}
@@ -109,9 +72,7 @@ tr:nth-child(even){background:#161616;}
 .btn-delete{background:#8e8e93;color:white;padding:5px 10px;}
 </style>
 </head>
-
 <body>
-
 <div class="container">
 
 <div style="display:flex;justify-content:space-between;align-items:center;">
@@ -122,14 +83,12 @@ tr:nth-child(even){background:#161616;}
 <!-- MAIN GENERATOR -->
 <div class="card">
 <h2>🔑 Generate VIP Key</h2>
-
 <form action="/admin/generate" method="POST">
 <label>Target Game:</label>
 <select name="game" style="border: 1px solid #ff3b30;">
     <option value="MLBB">Mobile Legends (MLBB)</option>
     <option value="CODM">Call of Duty Mobile (CODM)</option>
 </select>
-
 <br>
 <label>Days</label>
 <select name="days">
@@ -154,7 +113,6 @@ tr:nth-child(even){background:#161616;}
 <option value="{{i}}">{{i}} Minute</option>
 {% endfor %}
 </select>
-
 <button type="submit">Generate Random Key</button>
 </form>
 </div>
@@ -179,14 +137,7 @@ tr:nth-child(even){background:#161616;}
 <!-- DATABASE TABLES -->
 <div class="card">
 <h2>🗄️ Database Keys</h2>
-
-<input
-type="text"
-id="searchInput"
-placeholder="Search Key or Game..."
-style="width:100%;padding:12px;margin-top:10px;margin-bottom:15px;background:#2a2a2a;color:white;border:1px solid #444;border-radius:5px;"
-onkeyup="searchKeys()">
-
+<input type="text" id="searchInput" placeholder="Search Key or Game..." style="width:100%;padding:12px;margin-top:10px;margin-bottom:15px;background:#2a2a2a;color:white;border:1px solid #444;border-radius:5px;" onkeyup="searchKeys()">
 <table>
 <thead>
 <tr>
@@ -197,7 +148,6 @@ onkeyup="searchKeys()">
 <th>Actions</th>
 </tr>
 </thead>
-
 <tbody>
 {% for row in keys %}
 <tr>
@@ -218,7 +168,6 @@ onkeyup="searchKeys()">
 <span style="color:#34c759;">Fresh (Logs first device)</span>
 {% endif %}
 </td>
-
 <td>
 {% if current_time >= row[2] %}
 <span class="badge-expired">❌ Expired</span>
@@ -227,7 +176,6 @@ onkeyup="searchKeys()">
 <small>{{ datetime_format(row[2]) }}</small>
 {% endif %}
 </td>
-
 <td style="display:flex;gap:5px;flex-wrap:wrap;">
 <button type="button" onclick="copyKey('{{ row[0] }}')" style="background:#34c759;color:white;padding:5px 10px;border:none;border-radius:5px;cursor:pointer;">Copy Key</button>
 <a href="/admin/reset/{{ row[0] }}"><button class="btn-reset">Reset HWID</button></a>
@@ -240,7 +188,6 @@ onkeyup="searchKeys()">
 </tbody>
 </table>
 </div>
-
 </div>
 
 <script>
@@ -258,7 +205,6 @@ async function copyKey(key){
         alert("Copied Key:\\n\\n" + key);
     }
 }
-
 function searchKeys(){
     let input = document.getElementById("searchInput");
     let filter = input.value.toUpperCase();
@@ -279,7 +225,6 @@ function searchKeys(){
     }
 }
 </script>
-
 </body>
 </html>
 """
@@ -290,8 +235,7 @@ function searchKeys(){
 LOGIN_TEMPLATE = """
 <!DOCTYPE html>
 <html>
-<head>
-<title>Admin Login</title>
+<head><title>Admin Login</title>
 <style>
 body{background:#121212;color:white;font-family:Arial;display:flex;justify-content:center;align-items:center;height:100vh;}
 .box{background:#1e1e1e;padding:30px;border-radius:10px;width:350px;border:1px solid #333;}
@@ -299,17 +243,8 @@ input,button{width:100%;padding:12px;margin-top:10px;border:none;border-radius:5
 input{background:#2a2a2a;color:white;}
 button{background:#ff3b30;color:white;cursor:pointer;}
 h2{text-align:center;color:#ff3b30;}
-</style>
-</head>
-<body>
-<div class="box">
-<h2>🔐 Admin Login</h2>
-<form method="POST">
-<input type="password" name="password" placeholder="Enter Password" required>
-<button type="submit">Login</button>
-</form>
-</div>
-</body>
+</style></head>
+<body><div class="box"><h2>🔐 Admin Login</h2><form method="POST"><input type="password" name="password" placeholder="Enter Password" required><button type="submit">Login</button></form></div></body>
 </html>
 """
 
@@ -334,7 +269,6 @@ def admin_dashboard():
         return redirect('/login')
     conn = get_db_connection()
     cursor = conn.cursor()
-    # Kasama na ang 'game' sa select query natin ngayon
     cursor.execute("SELECT license_key, hwid, expiry_timestamp, game FROM keys_table ORDER BY expiry_timestamp DESC")
     keys = cursor.fetchall()
     conn.close()
@@ -342,15 +276,10 @@ def admin_dashboard():
     def datetime_format(timestamp):
         return time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(timestamp))
 
-    return render_template_string(
-        HTML_TEMPLATE,
-        keys=keys,
-        current_time=int(time.time()),
-        datetime_format=datetime_format
-    )
+    return render_template_string(HTML_TEMPLATE, keys=keys, current_time=int(time.time()), datetime_format=datetime_format)
 
 # =========================
-# KEY GENERATORS (WITH GAME PROTECTION)
+# KEY GENERATORS (FIXED STRUCTURE)
 # =========================
 @app.route('/admin/custom_generate', methods=['POST'])
 def custom_generate():
@@ -358,7 +287,7 @@ def custom_generate():
         return redirect('/login')
 
     custom_key = request.form.get('custom_key')
-    game_target = request.form.get('game', 'MLBB') # Kinukuha ang piniling laro
+    game_target = request.form.get('game', 'MLBB') 
     days = int(request.form.get('days', 0))
     hours = int(request.form.get('hours', 0))
     minutes = int(request.form.get('minutes', 0))
@@ -406,13 +335,15 @@ def admin_generate():
     random_str = ''.join(random.choices(string.ascii_letters + string.digits, k=14))
     expiry_seconds = (days * 86400) + (hours * 3600) + (minutes * 60)
 
-    # Prefix naming structure base sa game target
-    if game_target == 'CODM':
-        base_prefix = f"CODM_{days}d" if days > 0 else (f"CODM_{hours}h" if hours > 0 else f"CODM_{minutes}m")
+    # --- [FIXED LOGIC]: Parehong Slider_ ang prefix at walang extra underscores! ---
+    if days > 0:
+        prefix = f"Slider_{days}d"
+    elif hours > 0:
+        prefix = f"Slider_{hours}h"
     else:
-        base_prefix = f"Slider_{days}d" if days > 0 else (f"Slider_{hours}h" if hours > 0 else f"Slider_{minutes}m")
+        prefix = f"Slider_{minutes}m"
 
-    new_key = base_prefix + "_" + random_str
+    new_key = prefix + random_str  # Idinikit agad para walang _ sa pagitan ng duration at random string
     expiry_time = int(time.time()) + expiry_seconds
 
     conn = get_db_connection()
@@ -430,7 +361,6 @@ def admin_generate():
 def admin_reset_hwid(key):
     if not session.get("admin_logged_in"):
         return redirect('/login')
-
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("UPDATE keys_table SET hwid = '' WHERE license_key = %s", (key,))
@@ -442,7 +372,6 @@ def admin_reset_hwid(key):
 def admin_no_lock_hwid(key):
     if not session.get("admin_logged_in"):
         return redirect('/login')
-
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("UPDATE keys_table SET hwid = 'NO_LOCK' WHERE license_key = %s", (key,))
@@ -457,7 +386,6 @@ def admin_no_lock_hwid(key):
 def admin_delete_key(key):
     if not session.get("admin_logged_in"):
         return redirect('/login')
-
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("DELETE FROM keys_table WHERE license_key = %s", (key,))
@@ -469,66 +397,48 @@ def admin_delete_key(key):
 def admin_edit_time(key):
     if not session.get("admin_logged_in"):
         return redirect('/login')
-
     conn = get_db_connection()
     cursor = conn.cursor()
-
     if request.method == 'POST':
         days = int(request.form.get('days', 0))
         hours = int(request.form.get('hours', 0))
         minutes = int(request.form.get('minutes', 0))
         added_seconds = (days * 86400) + (hours * 3600) + (minutes * 60)
-
         cursor.execute("SELECT expiry_timestamp FROM keys_table WHERE license_key = %s", (key,))
         row = cursor.fetchone()
-
         if row:
             current_expiry = row[0]
             now = int(time.time())
             new_expiry = (now if current_expiry < now else current_expiry) + added_seconds
             cursor.execute("UPDATE keys_table SET expiry_timestamp = %s WHERE license_key = %s", (new_expiry, key))
             conn.commit()
-
         conn.close()
         return '<script>alert("Time Updated Successfully");window.location.href="/";</script>'
-
     conn.close()
     return f'''
     <!DOCTYPE html>
     <html>
     <head><title>Edit Time</title>
-    <style>
-    body{{background:#121212;color:white;font-family:Arial;padding:30px;}}
-    .box{{max-width:400px;margin:auto;background:#1e1e1e;padding:20px;border-radius:10px;border:1px solid #333;}}
-    input,button{{width:100%;padding:12px;margin-top:10px;border:none;border-radius:5px;}}
-    input{{background:#2a2a2a;color:white;}}
-    button{{background:#0a84ff;color:white;cursor:pointer;}}
-    </style></head>
-    <body><div class="box"><h2>Edit Time</h2><p>{key}</p>
-    <form method="POST">
-    <input type="number" name="days" placeholder="Days" value="0">
-    <input type="number" name="hours" placeholder="Hours" value="0">
-    <input type="number" name="minutes" placeholder="Minutes" value="0">
-    <button type="submit">Add Time</button>
-    </form></div></body></html>
+    <style>body{{background:#121212;color:white;font-family:Arial;padding:30px;}} .box{{max-width:400px;margin:auto;background:#1e1e1e;padding:20px;border-radius:10px;border:1px solid #333;}} input,button{{width:100%;padding:12px;margin-top:10px;border:none;border-radius:5px;}} input{{background:#2a2a2a;color:white;}} button{{background:#0a84ff;color:white;cursor:pointer;}}</style>
+    </head>
+    <body><div class="box"><h2>Edit Time</h2><p>{key}</p><form method="POST"><input type="number" name="days" placeholder="Days" value="0"><input type="number" name="hours" placeholder="Hours" value="0"><input type="number" name="minutes" placeholder="Minutes" value="0"><button type="submit">Add Time</button></form></div></body>
+    </html>
     '''
 
 # =========================
-# VERIFY API (STRICT GAME ISOLATION LOGIC)
+# VERIFY API
 # =========================
 @app.route('/verify', methods=['POST'])
 def verify_key():
     key = request.form.get('key')
     hwid = request.form.get('device_id')
-    client_game = request.form.get('game', 'MLBB') # Default sa MLBB kapag walang pinasa ang injector
+    client_game = request.form.get('game', 'MLBB') 
 
     if not key or not hwid:
         return jsonify({"status": 1, "msg": "Missing Parameters"})
 
     conn = get_db_connection()
     cursor = conn.cursor()
-
-    # Kukunin din natin kung anong laro naka-assign ang susi sa system (row[2] -> game)
     cursor.execute("SELECT hwid, expiry_timestamp, game FROM keys_table WHERE license_key = %s", (key,))
     row = cursor.fetchone()
 
@@ -536,52 +446,34 @@ def verify_key():
         db_hwid, expiry, db_game = row
         now = int(time.time())
 
-        # --- VALIDATION: Check kung para sa maling laro ang key ---
+        # Strict Separation Check (Kahit magkahawig ang structure ng text, dito sila mahaharang base sa column)
         if db_game.upper() != client_game.upper():
             conn.close()
-            return jsonify({
-                "status": 4, 
-                "msg": f"This key belongs to {db_game} only!"
-            })
+            return jsonify({"status": 4, "msg": f"This key belongs to {db_game} only!"})
 
-        # Check Expired
         if now >= expiry:
             conn.close()
             return jsonify({"status": 3, "msg": "Key Expired"})
 
-        # --- NO LOCK BYPASS LOGIC ---
         if db_hwid == 'NO_LOCK':
             conn.close()
-            return jsonify({
-                "status": 0,
-                "msg": f"Login Success ({db_game} - No Lock)",
-                "expiry": expiry
-            })
+            return jsonify({"status": 0, "msg": f"Login Success ({db_game} - No Lock)", "expiry": expiry})
 
-        # Kung fresh key, i-lock sa unang device na gagamit
         if not db_hwid:
             cursor.execute("UPDATE keys_table SET hwid = %s WHERE license_key = %s", (hwid, key))
             conn.commit()
             db_hwid = hwid
 
-        # Kung may nakatali nang HWID at hindi tugma sa gamit ngayon
         if db_hwid != hwid:
             conn.close()
             return jsonify({"status": 2, "msg": "Key used on another device"})
 
         conn.close()
-        return jsonify({
-            "status": 0,
-            "msg": "Login Success",
-            "expiry": expiry
-        })
+        return jsonify({"status": 0, "msg": "Login Success", "expiry": expiry})
 
     conn.close()
     return jsonify({"status": 4, "msg": "Invalid Key"})
 
-# =========================
-# START SERVER
-# =========================
 if __name__ == "__main__":
     init_db()
     port = int(os.environ.get("PORT", 10000))
