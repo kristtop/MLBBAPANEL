@@ -23,7 +23,6 @@ def get_db_connection():
 def init_db():
     conn = get_db_connection()
     cursor = conn.cursor()
-    # Nagdagdag tayo ng game_type column (Default ay 'CODM' para sa mga lumang keys)
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS keys_table (
             license_key TEXT PRIMARY KEY,
@@ -238,7 +237,6 @@ onkeyup="searchKeys()">
 
 <td style="font-family:monospace;color:#ffe957;">{{ row[0] }}</td>
 
-<!-- Ipinapakita kung CODM o MLBB ang key -->
 <td>
 {% if row[3] == 'MLBB' %}
 <span class="badge-mlbb">🎮 MLBB</span>
@@ -352,8 +350,31 @@ function searchKeys(){
 </html>
 """
 
-# HTML LOGIN AND ROUTES REMAIN UNCHANGED UNTIL KEY GENERATORS...
-# [Admins, log-in helpers are exactly the same as yours]
+LOGIN_TEMPLATE = """
+<!DOCTYPE html>
+<html>
+<head>
+<title>Admin Login</title>
+<style>
+body{background:#121212;color:white;font-family:Arial;display:flex;justify-content:center;align-items:center;height:100vh;}
+.box{background:#1e1e1e;padding:30px;border-radius:10px;width:350px;border:1px solid #333;}
+input,button{width:100%;padding:12px;margin-top:10px;border:none;border-radius:5px;}
+input{background:#2a2a2a;color:white;}
+button{background:#ff3b30;color:white;cursor:pointer;}
+h2{text-align:center;color:#ff3b30;}
+</style>
+</head>
+<body>
+<div class="box">
+<h2>🔐 Admin Login</h2>
+<form method="POST">
+<input type="password" name="password" placeholder="Enter Password" required>
+<button type="submit">Login</button>
+</form>
+</div>
+</body>
+</html>
+"""
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -376,7 +397,6 @@ def admin_dashboard():
         return redirect('/login')
     conn = get_db_connection()
     cursor = conn.cursor()
-    # Kasama na ang game_type sa SELECT query
     cursor.execute("SELECT license_key, hwid, expiry_timestamp, game_type FROM keys_table ORDER BY expiry_timestamp DESC")
     keys = cursor.fetchall()
     conn.close()
@@ -392,7 +412,7 @@ def admin_dashboard():
     )
 
 # =========================
-# KEY GENERATORS (UPDATED)
+# KEY GENERATORS
 # =========================
 @app.route('/admin/custom_generate', methods=['POST'])
 def custom_generate():
@@ -408,7 +428,6 @@ def custom_generate():
     if not custom_key:
         return '<script>alert("Enter Custom Key");window.location.href="/";</script>'
 
-    # Lalagyan natin ng prefix para hindi maghalo ang format
     final_key = f"{game_type}_{custom_key}"
 
     if days == 0 and hours == 0 and minutes == 0:
@@ -451,7 +470,6 @@ def admin_generate():
     random_str = ''.join(random.choices(string.ascii_letters + string.digits, k=14))
     expiry_seconds = (days * 86400) + (hours * 3600) + (minutes * 60)
 
-    # Gumawa ng custom name tag base sa laro at validity nito
     if days > 0:
         prefix = f"{game_type}_{days}d_"
     elif hours > 0:
@@ -471,7 +489,7 @@ def admin_generate():
     return f'<script>alert("Generated Key for {game_type}:\\n\\n{new_key}\\n\\nExpiry:\\n{days}D {hours}H {minutes}M");window.location.href="/";</script>'
 
 # =========================
-# RESET HWID / NO LOCK / ACTIONS
+# ACTIONS
 # =========================
 @app.route('/admin/reset/<string:key>', methods=['GET'])
 def admin_reset_hwid(key):
@@ -506,6 +524,7 @@ def admin_delete_key(key):
     conn.close()
     return f'<script>alert("Deleted Key\\n\\n{key}");window.location.href="/";</script>'
 
+# NAAYOS NA ROUTE (Double curly braces para sa CSS)
 @app.route('/admin/edit/<string:key>', methods=['GET', 'POST'])
 def admin_edit_time(key):
     if not session.get("admin_logged_in"):
@@ -528,17 +547,45 @@ def admin_edit_time(key):
         conn.close()
         return '<script>alert("Time Updated Successfully");window.location.href="/";</script>'
     conn.close()
-    return f'<body><form method="POST"><input type="number" name="days" value="0"><input type="number" name="hours" value="0"><input type="number" name="minutes" value="0"><button type="submit">Add Time</button></form></body>'
+    
+    EDIT_TEMPLATE = f'''
+    <!DOCTYPE html>
+    <html>
+    <head>
+    <title>Edit Time</title>
+    <style>
+    body{{background:#121212;color:white;font-family:Arial;padding:30px;}}
+    .box{{max-width:400px;margin:auto;background:#1e1e1e;padding:20px;border-radius:10px;border:1px solid #333;}}
+    input,button{{width:100%;padding:12px;margin-top:10px;border:none;border-radius:5px;}}
+    input{{background:#2a2a2a;color:white;}}
+    button{{background:#0a84ff;color:white;cursor:pointer;}}
+    </style>
+    </head>
+    <body>
+    <div class="box">
+    <h2>Edit Time</h2>
+    <p style="font-family:monospace;color:#ffe957;">{key}</p>
+    <form method="POST">
+    <input type="number" name="days" placeholder="Days" value="0">
+    <input type="number" name="hours" placeholder="Hours" value="0">
+    <input type="number" name="minutes" placeholder="Minutes" value="0">
+    <button type="submit">Add Time</button>
+    </form>
+    <br>
+    <a href="/" style="color:#aaa;text-decoration:none;"><p style="text-align:center;">Back to Dashboard</p></a>
+    </div>
+    </body>
+    </html>
+    '''
+    return render_template_string(EDIT_TEMPLATE)
 
 # ==========================================
-# VERIFY API (STRICT GAME SEPARATION FIX)
+# VERIFY API (STRICT GAME SEPARATION)
 # ==========================================
 @app.route('/verify', methods=['POST'])
 def verify_key():
     key = request.form.get('key')
     hwid = request.form.get('device_id')
-    
-    # Kukuha ng bagong parameter 'game' mula sa Lua, kung wala, automatic CODM muna (para sa old compatibility)
     game = request.form.get('game', 'CODM').upper()
 
     if not key or not hwid:
@@ -546,8 +593,6 @@ def verify_key():
 
     conn = get_db_connection()
     cursor = conn.cursor()
-
-    # Isasama natin ang pagkuha ng game_type sa query
     cursor.execute("SELECT hwid, expiry_timestamp, game_type FROM keys_table WHERE license_key = %s", (key,))
     row = cursor.fetchone()
 
@@ -555,19 +600,14 @@ def verify_key():
         db_hwid, expiry, db_game_type = row
         now = int(time.time())
 
-        # --- STRICT GAME CHECK VALIDATION ---
-        # Kung ang game ng panel na nag-re-request ay hindi katugma ng game_type sa DB, i-bblock natin agad!
         if db_game_type and db_game_type.upper() != game:
             conn.close()
             return jsonify({"status": 4, "msg": f"This key belongs to {db_game_type} only!"})
-        # -------------------------------------
 
-        # Check Expired
         if now >= expiry:
             conn.close()
             return jsonify({"status": 3, "msg": "Key Expired"})
 
-        # NO LOCK BYPASS LOGIC
         if db_hwid == 'NO_LOCK':
             conn.close()
             return jsonify({
@@ -576,13 +616,11 @@ def verify_key():
                 "expiry": expiry
             })
 
-        # Kung fresh key (empty pa ang HWID), i-lock sa unang device na gagamit
         if not db_hwid:
             cursor.execute("UPDATE keys_table SET hwid = %s WHERE license_key = %s", (hwid, key))
             conn.commit()
             db_hwid = hwid
 
-        # Kung may nakatali nang HWID at hindi tugma sa gamit ngayon
         if db_hwid != hwid:
             conn.close()
             return jsonify({"status": 2, "msg": "Key used on another device"})
@@ -596,32 +634,6 @@ def verify_key():
 
     conn.close()
     return jsonify({"status": 4, "msg": "Invalid Key"})
-
-LOGIN_TEMPLATE = """
-<!DOCTYPE html>
-<html>
-<head>
-<title>Admin Login</title>
-<style>
-body{background:#121212;color:white;font-family:Arial;display:flex;justify-content:center;align-items:center;height:100vh;}
-.box{background:#1e1e1e;padding:30px;border-radius:10px;width:350px;border:1px solid #333;}
-input,button{width:100%;padding:12px;margin-top:10px;border:none;border-radius:5px;}
-input{background:#2a2a2a;color:white;}
-button{background:#ff3b30;color:white;cursor:pointer;}
-h2{text-align:center;color:#ff3b30;}
-</style>
-</head>
-<body>
-<div class="box">
-<h2>🔐 Admin Login</h2>
-<form method="POST">
-<input type="password" name="password" placeholder="Enter Password" required>
-<button type="submit">Login</button>
-</form>
-</div>
-</body>
-</html>
-"""
 
 if __name__ == "__main__":
     init_db()
