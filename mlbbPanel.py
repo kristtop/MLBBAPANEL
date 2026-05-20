@@ -23,19 +23,30 @@ def get_db_connection():
 def init_db():
     conn = get_db_connection()
     cursor = conn.cursor()
+    
+    # 1. Siguraduhing gawa ang basic table
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS keys_table (
             license_key TEXT PRIMARY KEY,
             hwid TEXT,
-            expiry_timestamp INTEGER,
-            game_type TEXT DEFAULT 'CODM'
+            expiry_timestamp INTEGER
         )
     ''')
-    conn.commit()
+    
+    # 2. AUTO-MIGRATION: Kusang idadagdag ang game_type column kung hindi pa umiiral sa lumang DB
+    try:
+        cursor.execute("ALTER TABLE keys_table ADD COLUMN game_type TEXT DEFAULT 'CODM';")
+        conn.commit()
+        print("Successfully migrated database: game_type column added.")
+    except Exception as e:
+        # Kung andyan na ang column, mag-eerror pero safe i-rollback/i-ignore
+        conn.rollback()
+        print("Database already updated or column exists.")
+        
     conn.close()
 
 # =========================
-# HTML PANEL (UPDATED WITH GAME TYPE)
+# HTML PANEL (UPDATED WITH GAME SEPARATION)
 # =========================
 HTML_TEMPLATE = """
 <!DOCTYPE html>
@@ -237,6 +248,7 @@ onkeyup="searchKeys()">
 
 <td style="font-family:monospace;color:#ffe957;">{{ row[0] }}</td>
 
+<!-- Badge indicators base sa game format -->
 <td>
 {% if row[3] == 'MLBB' %}
 <span class="badge-mlbb">🎮 MLBB</span>
@@ -350,6 +362,9 @@ function searchKeys(){
 </html>
 """
 
+# =========================
+# ADMIN LOGIN
+# =========================
 LOGIN_TEMPLATE = """
 <!DOCTYPE html>
 <html>
@@ -397,6 +412,7 @@ def admin_dashboard():
         return redirect('/login')
     conn = get_db_connection()
     cursor = conn.cursor()
+    # Kasama na ang game_type column dito sa fetch
     cursor.execute("SELECT license_key, hwid, expiry_timestamp, game_type FROM keys_table ORDER BY expiry_timestamp DESC")
     keys = cursor.fetchall()
     conn.close()
@@ -412,7 +428,7 @@ def admin_dashboard():
     )
 
 # =========================
-# KEY GENERATORS
+# KEY GENERATORS (WITH GAME SEPARATION)
 # =========================
 @app.route('/admin/custom_generate', methods=['POST'])
 def custom_generate():
@@ -428,6 +444,7 @@ def custom_generate():
     if not custom_key:
         return '<script>alert("Enter Custom Key");window.location.href="/";</script>'
 
+    # Sinesave na may unique prefix base sa laro para iwas clash
     final_key = f"{game_type}_{custom_key}"
 
     if days == 0 and hours == 0 and minutes == 0:
@@ -489,7 +506,7 @@ def admin_generate():
     return f'<script>alert("Generated Key for {game_type}:\\n\\n{new_key}\\n\\nExpiry:\\n{days}D {hours}H {minutes}M");window.location.href="/";</script>'
 
 # =========================
-# ACTIONS
+# RESET HWID / NO LOCK
 # =========================
 @app.route('/admin/reset/<string:key>', methods=['GET'])
 def admin_reset_hwid(key):
@@ -511,8 +528,11 @@ def admin_no_lock_hwid(key):
     cursor.execute("UPDATE keys_table SET hwid = 'NO_LOCK' WHERE license_key = %s", (key,))
     conn.commit()
     conn.close()
-    return f'<script>alert("Key set to NO LOCK\\n\\n{key}");window.location.href="/";</script>'
+    return f'<script>alert("Key set to NO LOCK (Multi-Device Allowed)\\n\\n{key}");window.location.href="/";</script>'
 
+# =========================
+# EDIT / DELETE KEY
+# =========================
 @app.route('/admin/delete/<string:key>', methods=['GET'])
 def admin_delete_key(key):
     if not session.get("admin_logged_in"):
@@ -524,31 +544,37 @@ def admin_delete_key(key):
     conn.close()
     return f'<script>alert("Deleted Key\\n\\n{key}");window.location.href="/";</script>'
 
-# NAAYOS NA ROUTE (Double curly braces para sa CSS)
 @app.route('/admin/edit/<string:key>', methods=['GET', 'POST'])
 def admin_edit_time(key):
     if not session.get("admin_logged_in"):
         return redirect('/login')
+
     conn = get_db_connection()
     cursor = conn.cursor()
+
     if request.method == 'POST':
         days = int(request.form.get('days', 0))
         hours = int(request.form.get('hours', 0))
         minutes = int(request.form.get('minutes', 0))
         added_seconds = (days * 86400) + (hours * 3600) + (minutes * 60)
+
         cursor.execute("SELECT expiry_timestamp FROM keys_table WHERE license_key = %s", (key,))
         row = cursor.fetchone()
+
         if row:
             current_expiry = row[0]
             now = int(time.time())
             new_expiry = (now if current_expiry < now else current_expiry) + added_seconds
             cursor.execute("UPDATE keys_table SET expiry_timestamp = %s WHERE license_key = %s", (new_expiry, key))
             conn.commit()
+
         conn.close()
         return '<script>alert("Time Updated Successfully");window.location.href="/";</script>'
+
     conn.close()
     
-    EDIT_TEMPLATE = f'''
+    # Naka-double curly braces {{ }} para hindi mag-crash sa CSS styling ang F-string template
+    return f'''
     <!DOCTYPE html>
     <html>
     <head>
@@ -571,13 +597,10 @@ def admin_edit_time(key):
     <input type="number" name="minutes" placeholder="Minutes" value="0">
     <button type="submit">Add Time</button>
     </form>
-    <br>
-    <a href="/" style="color:#aaa;text-decoration:none;"><p style="text-align:center;">Back to Dashboard</p></a>
     </div>
     </body>
     </html>
     '''
-    return render_template_string(EDIT_TEMPLATE)
 
 # ==========================================
 # VERIFY API (STRICT GAME SEPARATION)
@@ -586,6 +609,9 @@ def admin_edit_time(key):
 def verify_key():
     key = request.form.get('key')
     hwid = request.form.get('device_id')
+    
+    # Kukuha ng bagong parameter 'game' mula sa cheat menu niyo (e.g., CODM o MLBB)
+    # Kapag lumang injector na walang sinesend na game, default ay CODM para backwards compatible.
     game = request.form.get('game', 'CODM').upper()
 
     if not key or not hwid:
@@ -600,14 +626,18 @@ def verify_key():
         db_hwid, expiry, db_game_type = row
         now = int(time.time())
 
+        # --- SEPARATION CROSS-CHECK LOGIC ---
+        # Kung may naka-set na limit sa db at iba ito sa game na nag-re-request, automatic reject!
         if db_game_type and db_game_type.upper() != game:
             conn.close()
             return jsonify({"status": 4, "msg": f"This key belongs to {db_game_type} only!"})
 
+        # Check Expired
         if now >= expiry:
             conn.close()
             return jsonify({"status": 3, "msg": "Key Expired"})
 
+        # No Lock Mode Bypass
         if db_hwid == 'NO_LOCK':
             conn.close()
             return jsonify({
@@ -616,11 +646,13 @@ def verify_key():
                 "expiry": expiry
             })
 
+        # Bind fresh keys
         if not db_hwid:
             cursor.execute("UPDATE keys_table SET hwid = %s WHERE license_key = %s", (hwid, key))
             conn.commit()
             db_hwid = hwid
 
+        # HWID Conflict
         if db_hwid != hwid:
             conn.close()
             return jsonify({"status": 2, "msg": "Key used on another device"})
@@ -635,6 +667,9 @@ def verify_key():
     conn.close()
     return jsonify({"status": 4, "msg": "Invalid Key"})
 
+# =========================
+# START SERVER (RENDER FIX)
+# =========================
 if __name__ == "__main__":
     init_db()
     port = int(os.environ.get("PORT", 10000))
