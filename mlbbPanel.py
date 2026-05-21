@@ -23,7 +23,6 @@ def get_db_connection():
 def init_db():
     conn = get_db_connection()
     cursor = conn.cursor()
-    # TINAMAAN AT INAYOS NA DITO:
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS keys_table (
             license_key TEXT PRIMARY KEY,
@@ -71,6 +70,8 @@ tr:nth-child(even){background:#161616;}
 .btn-reset{background:#ffcc00;color:black;padding:5px 10px;}
 .btn-nolock{background:#0a84ff;color:white;padding:5px 10px;}
 .btn-delete{background:#8e8e93;color:white;padding:5px 10px;}
+.toggle-view-btn{background:#30d158;color:white;padding:10px 15px;border-radius:5px;text-decoration:none;display:inline-block;font-weight:bold;margin-bottom:10px;}
+.toggle-view-btn.expired{background:#ff453a;}
 </style>
 </head>
 <body>
@@ -81,7 +82,6 @@ tr:nth-child(even){background:#161616;}
 <a href="/logout"><button style="background:#ff3b30;color:white;">Logout</button></a>
 </div>
 
-<!-- MAIN GENERATOR -->
 <div class="card">
 <h2>🔑 Generate VIP Key</h2>
 <form action="/admin/generate" method="POST">
@@ -118,7 +118,6 @@ tr:nth-child(even){background:#161616;}
 </form>
 </div>
 
-<!-- CUSTOM GENERATOR -->
 <div class="card">
 <h2>✏️ Custom Key Generator</h2>
 <form action="/admin/custom_generate" method="POST">
@@ -135,9 +134,17 @@ tr:nth-child(even){background:#161616;}
 </form>
 </div>
 
-<!-- DATABASE TABLES -->
 <div class="card">
-<h2>🗄️ Database Keys</h2>
+<div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap;">
+    <h2>🗄️ Database Keys ({% if show_expired %}Expired Keys Logs{% else %}Active Keys Only{% endif %})</h2>
+    
+    {% if show_expired %}
+    <a href="/" class="toggle-view-btn">🟢 Show Active Keys</a>
+    {% else %}
+    <a href="/?show_expired=true" class="toggle-view-btn expired">🔴 Show Expired Keys</a>
+    {% endif %}
+</div>
+
 <input type="text" id="searchInput" placeholder="Search Key or Game..." style="width:100%;padding:12px;margin-top:10px;margin-bottom:15px;background:#2a2a2a;color:white;border:1px solid #444;border-radius:5px;" onkeyup="searchKeys()">
 <table>
 <thead>
@@ -179,11 +186,15 @@ tr:nth-child(even){background:#161616;}
 </td>
 <td style="display:flex;gap:5px;flex-wrap:wrap;">
 <button type="button" onclick="copyKey('{{ row[0] }}')" style="background:#34c759;color:white;padding:5px 10px;border:none;border-radius:5px;cursor:pointer;">Copy Key</button>
-<a href="/admin/reset/{{ row[0] }}"><button class="btn-reset">Reset HWID</button></a>
-<a href="/admin/nolock/{{ row[0] }}"><button class="btn-nolock">No Lock</button></a>
-<a href="/admin/edit/{{ row[0] }}"><button style="background:#0a84ff;color:white;padding:5px 10px;">Edit Time</button></a>
-<a href="/admin/delete/{{ row[0] }}"><button class="btn-delete">Delete</button></a>
+<a href="/admin/reset/{{ row[0] }}?redirect_expired={{ 'true' if show_expired else 'false' }}"><button class="btn-reset">Reset HWID</button></a>
+<a href="/admin/nolock/{{ row[0] }}?redirect_expired={{ 'true' if show_expired else 'false' }}"><button class="btn-nolock">No Lock</button></a>
+<a href="/admin/edit/{{ row[0] }}?redirect_expired={{ 'true' if show_expired else 'false' }}"><button style="background:#0a84ff;color:white;padding:5px 10px;">Edit Time</button></a>
+<a href="/admin/delete/{{ row[0] }}?redirect_expired={{ 'true' if show_expired else 'false' }}"><button class="btn-delete">Delete</button></a>
 </td>
+</tr>
+{% else %}
+<tr>
+<td colspan="5" style="text-align:center; color:#8e8e93;">No keys found in this section.</td>
 </tr>
 {% endfor %}
 </tbody>
@@ -268,16 +279,27 @@ def logout():
 def admin_dashboard():
     if not session.get("admin_logged_in"):
         return redirect('/login')
+        
+    # Tingnan kung pinindot mo yung view expired keys parameter sa link
+    show_expired = request.args.get('show_expired', 'false') == 'true'
+    now_ts = int(time.time())
+    
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT license_key, hwid, expiry_timestamp, game FROM keys_table ORDER BY expiry_timestamp DESC")
+    
+    # FILTER LOGIC: Ibubukod ang expired sa active para malinis
+    if show_expired:
+        cursor.execute("SELECT license_key, hwid, expiry_timestamp, game FROM keys_table WHERE expiry_timestamp <= %s ORDER BY expiry_timestamp DESC", (now_ts,))
+    else:
+        cursor.execute("SELECT license_key, hwid, expiry_timestamp, game FROM keys_table WHERE expiry_timestamp > %s ORDER BY expiry_timestamp DESC", (now_ts,))
+        
     keys = cursor.fetchall()
     conn.close()
 
     def datetime_format(timestamp):
         return time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(timestamp))
 
-    return render_template_string(HTML_TEMPLATE, keys=keys, current_time=int(time.time()), datetime_format=datetime_format)
+    return render_template_string(HTML_TEMPLATE, keys=keys, current_time=now_ts, datetime_format=datetime_format, show_expired=show_expired)
 
 # =========================
 # KEY GENERATORS (FIXED STRUCTURE)
@@ -361,23 +383,29 @@ def admin_generate():
 def admin_reset_hwid(key):
     if not session.get("admin_logged_in"):
         return redirect('/login')
+    
+    redirect_target = "/?show_expired=true" if request.args.get('redirect_expired') == 'true' else "/"
+    
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("UPDATE keys_table SET hwid = '' WHERE license_key = %s", (key,))
     conn.commit()
     conn.close()
-    return f'<script>alert("HWID Reset Success\\n\\n{key}");window.location.href="/";</script>'
+    return f'<script>alert("HWID Reset Success\\n\\n{key}");window.location.href="{redirect_target}";</script>'
 
 @app.route('/admin/nolock/<string:key>', methods=['GET'])
 def admin_no_lock_hwid(key):
     if not session.get("admin_logged_in"):
         return redirect('/login')
+        
+    redirect_target = "/?show_expired=true" if request.args.get('redirect_expired') == 'true' else "/"
+    
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("UPDATE keys_table SET hwid = 'NO_LOCK' WHERE license_key = %s", (key,))
     conn.commit()
     conn.close()
-    return f'<script>alert("Key set to NO LOCK (Multi-Device Allowed)\\n\\n{key}");window.location.href="/";</script>'
+    return f'<script>alert("Key set to NO LOCK (Multi-Device Allowed)\\n\\n{key}");window.location.href="{redirect_target}";</script>'
 
 # =========================
 # EDIT / DELETE KEY
@@ -386,17 +414,23 @@ def admin_no_lock_hwid(key):
 def admin_delete_key(key):
     if not session.get("admin_logged_in"):
         return redirect('/login')
+        
+    redirect_target = "/?show_expired=true" if request.args.get('redirect_expired') == 'true' else "/"
+    
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("DELETE FROM keys_table WHERE license_key = %s", (key,))
     conn.commit()
     conn.close()
-    return f'<script>alert("Deleted Key\\n\\n{key}");window.location.href="/";</script>'
+    return f'<script>alert("Deleted Key\\n\\n{key}");window.location.href="{redirect_target}";</script>'
 
 @app.route('/admin/edit/<string:key>', methods=['GET', 'POST'])
 def admin_edit_time(key):
     if not session.get("admin_logged_in"):
         return redirect('/login')
+        
+    redirect_target = "/?show_expired=true" if request.args.get('redirect_expired') == 'true' else "/"
+    
     conn = get_db_connection()
     cursor = conn.cursor()
     if request.method == 'POST':
@@ -413,7 +447,7 @@ def admin_edit_time(key):
             cursor.execute("UPDATE keys_table SET expiry_timestamp = %s WHERE license_key = %s", (new_expiry, key))
             conn.commit()
         conn.close()
-        return '<script>alert("Time Updated Successfully");window.location.href="/";</script>'
+        return f'<script>alert("Time Updated Successfully");window.location.href="{redirect_target}";</script>'
     conn.close()
     return f'''
     <!DOCTYPE html>
