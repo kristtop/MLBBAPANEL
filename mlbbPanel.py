@@ -21,24 +21,32 @@ def get_db_connection():
     return conn
 
 def init_db():
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS keys_table (
-            license_key TEXT PRIMARY KEY,
-            hwid TEXT,
-            expiry_timestamp INTEGER
-        )
-    ''')
-    conn.commit()
+conn = get_db_connection()
+cursor = conn.cursor()
 
-    try:
-        cursor.execute("ALTER TABLE keys_table ADD COLUMN game TEXT DEFAULT 'MLBB';")
-        conn.commit()
-    except Exception:
-        conn.rollback() 
-        
-    conn.close()
+cursor.execute('''
+    CREATE TABLE IF NOT EXISTS keys_table (
+        license_key TEXT PRIMARY KEY,
+        hwid TEXT,
+        expiry_timestamp INTEGER
+    )
+''')
+conn.commit()
+
+cursor.execute('''
+    CREATE TABLE IF NOT EXISTS blocked_devices (
+        hwid TEXT PRIMARY KEY
+    )
+''')
+conn.commit()
+
+try:
+    cursor.execute("ALTER TABLE keys_table ADD COLUMN game TEXT DEFAULT 'MLBB';")
+    conn.commit()
+except Exception:
+    conn.rollback()
+
+conn.close()
 
 # =========================
 # HTML PANEL
@@ -393,19 +401,41 @@ def admin_reset_hwid(key):
     conn.close()
     return f'<script>alert("HWID Reset Success\\n\\n{key}");window.location.href="{redirect_target}";</script>'
 
-@app.route('/admin/nolock/<string:key>', methods=['GET'])
+@app.route('/admin/nolock/"string:key" (string:key)', methods=['GET'])
 def admin_no_lock_hwid(key):
-    if not session.get("admin_logged_in"):
-        return redirect('/login')
-        
-    redirect_target = "/?show_expired=true" if request.args.get('redirect_expired') == 'true' else "/"
-    
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("UPDATE keys_table SET hwid = 'NO_LOCK' WHERE license_key = %s", (key,))
+if not session.get("admin_logged_in"):
+return redirect('/login')
+
+redirect_target = "/?show_expired=true" if request.args.get('redirect_expired') == 'true' else "/"
+
+conn = get_db_connection()
+cursor = conn.cursor()
+cursor.execute("UPDATE keys_table SET hwid = 'NO_LOCK' WHERE license_key = %s", (key,))
+conn.commit()
+conn.close()
+
+return f'<script>alert("Key set to NO LOCK (Multi-Device Allowed)\\n\\n{key}");window.location.href="{redirect_target}";</script>'
+
+@app.route('/admin/block_device/"string:hwid" (string:hwid)', methods=['GET'])
+def block_device(hwid):
+if not session.get("admin_logged_in"):
+return redirect('/login')
+
+conn = get_db_connection()
+cursor = conn.cursor()
+
+try:
+    cursor.execute(
+        "INSERT INTO blocked_devices (hwid) VALUES (%s)",
+        (hwid,)
+    )
     conn.commit()
-    conn.close()
-    return f'<script>alert("Key set to NO LOCK (Multi-Device Allowed)\\n\\n{key}");window.location.href="{redirect_target}";</script>'
+except Exception:
+    conn.rollback()
+
+conn.close()
+
+return f'<script>alert("Device Blocked\\n\\n{hwid}");window.location.href="/";</script>'
 
 # =========================
 # EDIT / DELETE KEY
@@ -464,17 +494,34 @@ def admin_edit_time(key):
 # =========================
 @app.route('/verify', methods=['POST'])
 def verify_key():
-    key = request.form.get('key')
-    hwid = request.form.get('device_id')
-    client_game = request.form.get('game', 'MLBB') 
+key = request.form.get('key')
+hwid = request.form.get('device_id')
+client_game = request.form.get('game', 'MLBB')
 
-    if not key or not hwid:
-        return jsonify({"status": 1, "msg": "Missing Parameters"})
+if not key or not hwid:
+    return jsonify({"status": 1, "msg": "Missing Parameters"})
 
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT hwid, expiry_timestamp, game FROM keys_table WHERE license_key = %s", (key,))
-    row = cursor.fetchone()
+conn = get_db_connection()
+cursor = conn.cursor()
+
+cursor.execute(
+    "SELECT hwid FROM blocked_devices WHERE hwid = %s",
+    (hwid,)
+)
+
+if cursor.fetchone():
+    conn.close()
+    return jsonify({
+        "status": 5,
+        "msg": "Device Blocked"
+    })
+
+cursor.execute(
+    "SELECT hwid, expiry_timestamp, game FROM keys_table WHERE license_key = %s",
+    (key,)
+)
+
+row = cursor.fetchone()
 
     if row:
         db_hwid, expiry, db_game = row
