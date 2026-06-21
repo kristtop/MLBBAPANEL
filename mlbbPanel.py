@@ -21,32 +21,34 @@ def get_db_connection():
     return conn
 
 def init_db():
-conn = get_db_connection()
-cursor = conn.cursor()
+    conn = get_db_connection()
+    cursor = conn.cursor()
 
-cursor.execute('''
-    CREATE TABLE IF NOT EXISTS keys_table (
-        license_key TEXT PRIMARY KEY,
-        hwid TEXT,
-        expiry_timestamp INTEGER
-    )
-''')
-conn.commit()
-
-cursor.execute('''
-    CREATE TABLE IF NOT EXISTS blocked_devices (
-        hwid TEXT PRIMARY KEY
-    )
-''')
-conn.commit()
-
-try:
-    cursor.execute("ALTER TABLE keys_table ADD COLUMN game TEXT DEFAULT 'MLBB';")
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS keys_table (
+            license_key TEXT PRIMARY KEY,
+            hwid TEXT,
+            expiry_timestamp INTEGER
+        )
+    ''')
     conn.commit()
-except Exception:
-    conn.rollback()
 
-conn.close()
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS blocked_devices (
+            hwid TEXT PRIMARY KEY
+        )
+    ''')
+    conn.commit()
+
+    try:
+        cursor.execute(
+            "ALTER TABLE keys_table ADD COLUMN game TEXT DEFAULT 'MLBB';"
+        )
+        conn.commit()
+    except Exception:
+        conn.rollback()
+
+    conn.close()
 
 # =========================
 # HTML PANEL
