@@ -162,6 +162,23 @@ tr:nth-child(even){background:#161616;}
 </div>
 
 <div class="card">
+    <h2>✅ Unban Device</h2>
+
+    <form action="/admin/unblock_device_manual" method="POST">
+        <input
+            type="text"
+            name="hwid"
+            placeholder="Enter Device ID / HWID"
+            required
+            style="width:100%;">
+
+        <button type="submit">
+            Unban This Device
+        </button>
+    </form>
+</div>
+
+<div class="card">
 <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap;">
     <h2>🗄️ Database Keys ({% if show_expired %}Expired Keys Logs{% else %}Active Keys Only{% endif %})</h2>
     
@@ -491,6 +508,29 @@ def block_device_manual():
     conn.close()
 
     return f'<script>alert("Device Banned\\n\\n{hwid}");window.location.href="/";</script>'
+    
+@app.route('/admin/unblock_device_manual', methods=['POST'])
+def unblock_device_manual():
+    if not session.get("admin_logged_in"):
+        return redirect('/login')
+
+    hwid = request.form.get('hwid', '').strip()
+
+    if not hwid:
+        return '<script>alert("Enter Device ID");window.location.href="/";</script>'
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    cursor.execute(
+        "DELETE FROM blocked_devices WHERE hwid = %s",
+        (hwid,)
+    )
+
+    conn.commit()
+    conn.close()
+
+    return f'<script>alert("Device Unbanned\\n\\n{hwid}");window.location.href="/";</script>'
 
 # =========================
 # EDIT / DELETE KEY
