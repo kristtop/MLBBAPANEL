@@ -389,55 +389,65 @@ def admin_generate():
 # =========================
 # RESET HWID / NO LOCK
 # =========================
+
 @app.route('/admin/reset/<string:key>', methods=['GET'])
 def admin_reset_hwid(key):
     if not session.get("admin_logged_in"):
         return redirect('/login')
-    
+
     redirect_target = "/?show_expired=true" if request.args.get('redirect_expired') == 'true' else "/"
-    
+
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("UPDATE keys_table SET hwid = '' WHERE license_key = %s", (key,))
-    conn.commit()
-    conn.close()
-    return f'<script>alert("HWID Reset Success\\n\\n{key}");window.location.href="{redirect_target}";</script>'
-
-@app.route('/admin/nolock/"string:key" (string:key)', methods=['GET'])
-def admin_no_lock_hwid(key):
-if not session.get("admin_logged_in"):
-return redirect('/login')
-
-redirect_target = "/?show_expired=true" if request.args.get('redirect_expired') == 'true' else "/"
-
-conn = get_db_connection()
-cursor = conn.cursor()
-cursor.execute("UPDATE keys_table SET hwid = 'NO_LOCK' WHERE license_key = %s", (key,))
-conn.commit()
-conn.close()
-
-return f'<script>alert("Key set to NO LOCK (Multi-Device Allowed)\\n\\n{key}");window.location.href="{redirect_target}";</script>'
-
-@app.route('/admin/block_device/"string:hwid" (string:hwid)', methods=['GET'])
-def block_device(hwid):
-if not session.get("admin_logged_in"):
-return redirect('/login')
-
-conn = get_db_connection()
-cursor = conn.cursor()
-
-try:
     cursor.execute(
-        "INSERT INTO blocked_devices (hwid) VALUES (%s)",
-        (hwid,)
+        "UPDATE keys_table SET hwid = '' WHERE license_key = %s",
+        (key,)
     )
     conn.commit()
-except Exception:
-    conn.rollback()
+    conn.close()
 
-conn.close()
+    return f'<script>alert("HWID Reset Success\\n\\n{key}");window.location.href="{redirect_target}";</script>'
 
-return f'<script>alert("Device Blocked\\n\\n{hwid}");window.location.href="/";</script>'
+
+@app.route('/admin/nolock/<string:key>', methods=['GET'])
+def admin_no_lock_hwid(key):
+    if not session.get("admin_logged_in"):
+        return redirect('/login')
+
+    redirect_target = "/?show_expired=true" if request.args.get('redirect_expired') == 'true' else "/"
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "UPDATE keys_table SET hwid = 'NO_LOCK' WHERE license_key = %s",
+        (key,)
+    )
+    conn.commit()
+    conn.close()
+
+    return f'<script>alert("Key set to NO LOCK (Multi-Device Allowed)\\n\\n{key}");window.location.href="{redirect_target}";</script>'
+
+
+@app.route('/admin/block_device/<string:hwid>', methods=['GET'])
+def block_device(hwid):
+    if not session.get("admin_logged_in"):
+        return redirect('/login')
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    try:
+        cursor.execute(
+            "INSERT INTO blocked_devices (hwid) VALUES (%s)",
+            (hwid,)
+        )
+        conn.commit()
+    except Exception:
+        conn.rollback()
+
+    conn.close()
+
+    return f'<script>alert("Device Blocked\\n\\n{hwid}");window.location.href="/";</script>'
 
 # =========================
 # EDIT / DELETE KEY
