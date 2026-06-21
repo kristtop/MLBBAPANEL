@@ -506,32 +506,32 @@ def admin_edit_time(key):
 # =========================
 @app.route('/verify', methods=['POST'])
 def verify_key():
-key = request.form.get('key')
-hwid = request.form.get('device_id')
-client_game = request.form.get('game', 'MLBB')
+    key = request.form.get('key')
+    hwid = request.form.get('device_id')
+    client_game = request.form.get('game', 'MLBB')
 
-if not key or not hwid:
-    return jsonify({"status": 1, "msg": "Missing Parameters"})
+    if not key or not hwid:
+        return jsonify({"status": 1, "msg": "Missing Parameters"})
 
-conn = get_db_connection()
-cursor = conn.cursor()
+    conn = get_db_connection()
+    cursor = conn.cursor()
 
-cursor.execute(
-    "SELECT hwid FROM blocked_devices WHERE hwid = %s",
-    (hwid,)
-)
+    cursor.execute(
+        "SELECT hwid FROM blocked_devices WHERE hwid = %s",
+        (hwid,)
+    )
 
-if cursor.fetchone():
-    conn.close()
-    return jsonify({
-        "status": 5,
-        "msg": "Device Blocked"
-    })
+    if cursor.fetchone():
+        conn.close()
+        return jsonify({
+            "status": 5,
+            "msg": "Device Blocked"
+        })
 
-cursor.execute(
-    "SELECT hwid, expiry_timestamp, game FROM keys_table WHERE license_key = %s",
-    (key,)
-)
+    cursor.execute(
+        "SELECT hwid, expiry_timestamp, game FROM keys_table WHERE license_key = %s",
+        (key,)
+    )
 
 row = cursor.fetchone()
 
