@@ -145,6 +145,23 @@ tr:nth-child(even){background:#161616;}
 </div>
 
 <div class="card">
+    <h2>🚫 Ban Device</h2>
+
+    <form action="/admin/block_device_manual" method="POST">
+        <input
+            type="text"
+            name="hwid"
+            placeholder="Enter Device ID / HWID"
+            required
+            style="width:100%;">
+
+        <button type="submit">
+            Ban This Device
+        </button>
+    </form>
+</div>
+
+<div class="card">
 <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap;">
     <h2>🗄️ Database Keys ({% if show_expired %}Expired Keys Logs{% else %}Active Keys Only{% endif %})</h2>
     
@@ -448,6 +465,32 @@ def block_device(hwid):
     conn.close()
 
     return f'<script>alert("Device Blocked\\n\\n{hwid}");window.location.href="/";</script>'
+    
+@app.route('/admin/block_device_manual', methods=['POST'])
+def block_device_manual():
+    if not session.get("admin_logged_in"):
+        return redirect('/login')
+
+    hwid = request.form.get('hwid', '').strip()
+
+    if not hwid:
+        return '<script>alert("Enter Device ID");window.location.href="/";</script>'
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    try:
+        cursor.execute(
+            "INSERT INTO blocked_devices (hwid) VALUES (%s)",
+            (hwid,)
+        )
+        conn.commit()
+    except Exception:
+        conn.rollback()
+
+    conn.close()
+
+    return f'<script>alert("Device Banned\\n\\n{hwid}");window.location.href="/";</script>'
 
 # =========================
 # EDIT / DELETE KEY
