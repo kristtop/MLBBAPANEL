@@ -533,7 +533,7 @@ def verify_key():
         (key,)
     )
 
-row = cursor.fetchone()
+    row = cursor.fetchone()
 
     if row:
         db_hwid, expiry, db_game = row
@@ -541,30 +541,54 @@ row = cursor.fetchone()
 
         if db_game.upper() != client_game.upper():
             conn.close()
-            return jsonify({"status": 4, "msg": f"This key belongs to {db_game} only!"})
+            return jsonify({
+                "status": 4,
+                "msg": f"This key belongs to {db_game} only!"
+            })
 
         if now >= expiry:
             conn.close()
-            return jsonify({"status": 3, "msg": "Key Expired"})
+            return jsonify({
+                "status": 3,
+                "msg": "Key Expired"
+            })
 
         if db_hwid == 'NO_LOCK':
             conn.close()
-            return jsonify({"status": 0, "msg": f"Login Success ({db_game} - No Lock)", "expiry": expiry})
+            return jsonify({
+                "status": 0,
+                "msg": f"Login Success ({db_game} - No Lock)",
+                "expiry": expiry
+            })
 
         if not db_hwid:
-            cursor.execute("UPDATE keys_table SET hwid = %s WHERE license_key = %s", (hwid, key))
+            cursor.execute(
+                "UPDATE keys_table SET hwid = %s WHERE license_key = %s",
+                (hwid, key)
+            )
             conn.commit()
             db_hwid = hwid
 
         if db_hwid != hwid:
             conn.close()
-            return jsonify({"status": 2, "msg": "Key used on another device"})
+            return jsonify({
+                "status": 2,
+                "msg": "Key used on another device"
+            })
 
         conn.close()
-        return jsonify({"status": 0, "msg": "Login Success", "expiry": expiry})
+        return jsonify({
+            "status": 0,
+            "msg": "Login Success",
+            "expiry": expiry
+        })
 
     conn.close()
-    return jsonify({"status": 4, "msg": "Invalid Key"})
+    return jsonify({
+        "status": 4,
+        "msg": "Invalid Key"
+    })
+
 
 if __name__ == "__main__":
     init_db()
